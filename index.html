@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PRECTO</title>
+    <link rel="stylesheet" href="main.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+
+<body>
+
+    <!-- PREVIEW LOGIN START (Diesen Block löschen, um den Login zu entfernen) -->
+    <div id="preview-login" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #ffffff; z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 1rem; box-sizing: border-box;">
+        <div style="background: white; padding: 3rem 2rem; border-radius: 24px; box-shadow: var(--shadow); max-width: 500px; width: 100%; text-align: center; box-sizing: border-box; animation: fadeIn 1.5s ease-out;">
+            <img src="logo.png" alt="PRECTO Logo" style="width: 120px; margin-bottom: 1.5rem; border-radius: 16px; animation: float 6s ease-in-out infinite;">
+            <h1 style="margin-top: 0; color: var(--primary-color); font-size: 2.5rem; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 10px;">Coming Soon <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12H4s.55-3.03 2-4c1.62-1.1 4-1 4-1Z"></path><path d="M12 15v5s3.03-.55 4-2c1.1-1.62 1-4 1-4Z"></path></svg></h1>
+            <p style="margin-bottom: 2rem; color: var(--text-color); font-size: 1.1rem; line-height: 1.5;">
+                Wir arbeiten an den letzten Details für unseren neuen Store.<br>Schauen Sie bald wieder vorbei!
+            </p>
+            
+            <form style="display: none;" onsubmit="event.preventDefault(); this.innerHTML='<p style=\'color: var(--accent-color); font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 8px;\'>Danke! Du bist dabei. <svg xmlns=\'http://www.w3.org/2000/svg\' width=\'20\' height=\'20\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z\'></path><polyline points=\'22,6 12,13 2,6\'></polyline></svg></p>';" style="margin-bottom: 2rem; display: flex; gap: 0.5rem; justify-content: center;">
+                <input type="email" placeholder="Deine E-Mail für Updates" required style="margin-bottom: 0; border-radius: 8px; padding: 0.8rem; border: 1px solid #ddd; width: 60%;">
+                <button type="submit" style="width: auto; border-radius: 8px; padding: 0.8rem 1.2rem;">Anmelden</button>
+            </form>
+
+            <div style="border-top: 1px solid #eee; padding-top: 1.5rem; margin-top: 1rem;">
+                <button id="show-login-btn" onclick="document.getElementById('login-form-container').style.display='block'; this.style.display='none';" style="background: transparent; color: #999; border: 1px solid #eee; padding: 0.5rem 1rem; font-size: 0.8rem; width: auto; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; margin: 0 auto;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Login</button>
+                <div id="login-form-container" style="display: none; animation: fadeIn 0.5s ease-out;">
+                    <p style="margin-bottom: 1rem; color: #999; font-size: 0.9rem;">Preview Zugang</p>
+                    <input type="password" id="preview-pass" placeholder="Passwort" style="margin-bottom: 1rem;" onkeypress="if(event.key==='Enter') app.checkPreviewAccess()">
+                    <button onclick="app.checkPreviewAccess()">Eintreten</button>
+                    <p id="login-error" style="color: #ef4444; display: none; margin-top: 10px; font-weight: bold;">Falsches Passwort!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- PREVIEW LOGIN END -->
+
+    <div class="announcement-bar" style="display: none;">
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Spare 10% auf alles mit: <strong>WILLKOMMEN10</strong></span>
+    </div>
+
+    <header>
+        <div class="header-container">
+            <a href="#" class="logo" style="color: red;" onclick="app.navigate('home')"><img src="logo.png" alt="PRECTO Logo">**PREVIEW**</a>
+            
+            <div class="header-controls">
+                <select id="header-country-select" class="nav-country-select" onchange="app.setCountry(this.value)">
+                    <option value="DE">🇩🇪 DE</option>
+                    <option value="AT">🇦🇹 AT</option>
+                </select>
+
+                <div class="cart-icon" onclick="app.navigate('cart')">
+                    <!-- SVG Cart Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                    <span id="cart-count" class="cart-count" style="display:none">0</span>
+                </div>
+
+                <button class="hamburger" onclick="app.toggleMenu()" aria-label="Menü">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+
+                <nav id="main-nav">
+                    <ul>
+                        <li><a onclick="app.navigate('home')" id="nav-home">Startseite</a></li>
+                        <li><a onclick="app.navigate('shop')" id="nav-shop">Produkte</a></li>
+                        <li><a onclick="app.navigate('contact')" id="nav-contact" style="display: none;">Kontakt</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="content-wrapper">
+    <main>
+        <!-- Home Section -->
+        <section id="home" class="section active">
+            <div class="hero-banner" style="text-align: center;">
+                <div class="hero-content">
+                <h1 id="hero-title">Qualität, die überzeugt.</h1>
+                <p id="hero-text" style="max-width: 600px; margin: 0 auto 2rem;">
+                    Entdecken Sie unsere kuratierte Auswahl an hochwertigen Produkten für Ihr Unternehmen und Zuhause.
+                </p>
+                <button onclick="app.navigate('shop')" style="width: auto; padding: 1rem 2rem; font-size: 1.1rem;">Jetzt Entdecken</button>
+                </div>
+            </div>
+
+            <div style="margin-top: 3rem;">
+                <h2 style="text-align: center;">Bestseller</h2>
+                <div id="featured-products" class="product-grid">
+                    <!-- Featured products rendered via JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Shop Section -->
+        <section id="shop" class="section">
+            <h2>Unsere Produkte</h2>
+            <!-- Search Bar -->
+            <div class="search-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon search-icon-overlay" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" placeholder="Produkte suchen..." oninput="app.searchProducts(this.value)">
+            </div>
+            
+            <!-- Shop Controls (Categories & Sort) -->
+            <div class="shop-controls">
+                <div class="filter-wrapper">
+                    <div id="category-filters" class="category-filters"></div>
+                    <button class="filter-toggle" onclick="app.toggleFilterView()" aria-label="Filter erweitern">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                </div>
+                <select class="sort-select" onchange="app.sortProducts(this.value)">
+                    <option value="default">Sortierung: Standard</option>
+                    <option value="price-asc">Preis: Niedrigster zuerst</option>
+                    <option value="price-desc">Preis: Höchster zuerst</option>
+                    <option value="name-asc">Name: A-Z</option>
+                </select>
+            </div>
+
+            <div id="product-list" class="product-grid">
+                <!-- Products rendered via JS -->
+            </div>
+        </section>
+
+        <!-- Product Detail Section -->
+        <section id="product-detail" class="section">
+            <div class="detail-header">
+                <button onclick="app.navigate('shop')" class="back-link">← Zurück zum Shop</button>
+            </div>
+            <div class="product-detail-wrapper">
+                <div class="detail-image-container">
+                    <img id="detail-img" src="" alt="">
+                    <button id="detail-fav-btn" class="fav-btn" style="top: 20px; right: 20px; width: 50px; height: 50px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    </button>
+                </div>
+                <div class="detail-content">
+                    <span id="detail-category" class="category-badge">Kategorie</span>
+                    <h1 id="detail-title">Produkt Name</h1>
+                    <div id="detail-price" class="detail-price">0.00 €</div>
+                    <p id="detail-desc">Beschreibung...</p>
+                    
+                    <div class="detail-controls">
+                        <!-- Controls injected via JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Cart Section -->
+        <section id="cart" class="section">
+            <h2 id="cart-section-title" style="display: flex; align-items: center; gap: 10px;">Ihr Warenkorb <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg></h2>
+            <div class="cart-layout">
+                <div id="cart-items-container">
+                    <!-- Items list -->
+                </div>
+                <div id="cart-summary-container" class="cart-summary">
+                    <h3>Zusammenfassung</h3>
+                    <div class="summary-row">
+                        <span>Zwischensumme</span>
+                        <span id="cart-subtotal">0.00 €</span>
+                    </div>
+                    <div class="summary-row" style="align-items: center;">
+                        <span>Lieferland</span>
+                        <select id="cart-country" onchange="app.setCountry(this.value)" style="width: auto; padding: 0.4rem; margin: 0; font-size: 0.9rem; border-radius: 8px;">
+                            <option value="DE">Deutschland</option>
+                            <option value="AT">Österreich</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Discount Input -->
+                    <div class="discount-input-group">
+                        <input type="text" id="discount-code" placeholder="Gutscheincode" style="margin-bottom: 0; padding: 0.6rem;">
+                        <button onclick="app.applyDiscount()" style="width: auto; padding: 0.6rem 1rem; font-size: 0.9rem;">Einlösen</button>
+                    </div>
+                    <div id="cart-discount-row" class="discount-row" style="display: none;">
+                        <span>Rabatt</span>
+                        <span id="cart-discount-amount">-0.00 €</span>
+                    </div>
+
+                    <div class="summary-row">
+                        <span>Versand</span>
+                        <span id="cart-shipping">0.00 €</span>
+                    </div>
+                    <div class="summary-row" style="color: #666; font-size: 0.9rem;">
+                        <span>Enth. MwSt.</span>
+                        <span id="cart-tax">0.00 €</span>
+                    </div>
+                    <div class="summary-total">
+                        <span>Gesamt</span>
+                        <span id="cart-total-display">0.00 €</span>
+                    </div>
+                    <button onclick="app.checkout()" class="checkout-btn-large">Zur Kasse gehen ➔</button>
+                    <div class="trust-badges">
+                        <span style="display: flex; align-items: center; gap: 4px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Sicher bezahlen</span>
+                        <span style="display: flex; align-items: center; gap: 4px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg> Schneller Versand</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Checkout Section -->
+        <section id="checkout" class="section">
+            <!-- Background Magic -->
+            <div class="checkout-bg">
+            </div>
+            
+            <div class="checkout-wizard">
+                <div class="wizard-header">
+                    <button onclick="app.navigate('cart')" style="position: absolute; top: 2rem; right: 2rem; background: transparent; border: none; font-size: 2rem; cursor: pointer; color: var(--text-color); width: auto; padding: 0; line-height: 1; z-index: 10;">&times;</button>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">Bestellabschluss <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></h2>
+                    <div class="wizard-progress">
+                        <div class="progress-bar-fill" id="wizard-progress-bar"></div>
+                    </div>
+                </div>
+                
+                <div class="wizard-content">
+                    <!-- Step 1: Address -->
+                    <div class="wizard-step active" id="step-1">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--primary-color); font-size: 1.5rem; display: flex; align-items: center; gap: 10px;">
+                            Wohin dürfen wir liefern? 
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                        </h3>
+                        <form id="checkout-form-step1">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <input type="text" id="input-firstname" placeholder="Vorname" required autocomplete="given-name">
+                                <input type="text" id="input-lastname" placeholder="Nachname" required autocomplete="family-name">
+                            </div>
+                            <div style="position: relative; margin-bottom: 10px;">
+                                <input type="text" id="input-street" placeholder="Straße & Hausnummer" required autocomplete="street-address" style="margin-bottom: 0;">
+                                <div id="street-suggestions" class="autocomplete-suggestions"></div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
+                                <input type="text" id="input-zip" placeholder="PLZ" required autocomplete="postal-code" maxlength="5">
+                                <input type="text" id="input-city" placeholder="Stadt" required autocomplete="address-level2">
+                            </div>
+                            <select id="input-country" required autocomplete="country" style="margin-bottom: 10px;">
+                                <option value="" disabled selected>Land wählen...</option>
+                                <option value="DE">Deutschland (4,99 €)</option>
+                                <option value="AT">Österreich (9,99 €)</option>
+                            </select>
+                            <input type="email" id="input-email" placeholder="E-Mail Adresse" required autocomplete="email">
+                        </form>
+                    </div>
+
+                    <!-- Step 2: Payment -->
+                    <div class="wizard-step" id="step-2">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--primary-color); font-size: 1.5rem; display: flex; align-items: center; gap: 10px;">
+                            Wie möchtest du bezahlen?
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                        </h3>
+                        <div class="payment-options">
+                            <label class="payment-card selected" onclick="app.selectPayment(this)">
+                                <input type="radio" name="payment" value="creditcard" checked>
+                                <span class="payment-icon"><svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg></span>
+                                <strong>Kreditkarte</strong>
+                            </label>
+                            <label class="payment-card" onclick="app.selectPayment(this)">
+                                <input type="radio" name="payment" value="paypal">
+                                <span class="payment-icon"><svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M16 13H8"></path><path d="M16 17H8"></path><path d="M10 9H8"></path></svg></span>
+                                <strong>PayPal</strong>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Review -->
+                    <div class="wizard-step" id="step-3">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--primary-color); font-size: 1.5rem; display: flex; align-items: center; gap: 10px;">
+                            Alles korrekt?
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>
+                        </h3>
+                        <div id="checkout-summary-wizard" style="background: rgba(255,255,255,0.5); padding: 1.5rem; border-radius: 20px; border: 1px solid rgba(255,255,255,0.8);"></div>
+                        <div style="text-align: right; font-size: 1.8rem; font-weight: bold; margin-top: 1.5rem; color: var(--accent-color);" id="checkout-total-wizard"></div>
+                    </div>
+                </div>
+
+                <div class="wizard-footer">
+                    <button type="button" class="secondary" id="btn-back" onclick="app.prevStep()" style="width: auto; visibility: hidden; background: transparent; color: #666; border: 1px solid #ddd;">Zurück</button>
+                    <button type="button" id="btn-next" onclick="app.nextStep()" style="width: auto; padding: 1rem 2.5rem; font-size: 1.1rem;">Weiter ➔</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tracking Section -->
+        <section id="tracking" class="section">
+            <h2 style="display: flex; align-items: center; gap: 10px;">Lieferstatus <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></h2>
+            <div style="background: white; padding: 2rem; border-radius: 24px; box-shadow: var(--shadow); max-width: 800px; margin: 0 auto;">
+                <div style="text-align: center; margin-bottom: 2rem;">
+                    <p style="color: #666;">Bestellnummer</p>
+                    <h3 id="tracking-order-id" style="font-size: 1.5rem; color: var(--accent-color); margin: 0;">-</h3>
+                </div>
+
+                <div class="tracking-timeline">
+                    <div class="timeline-item active">
+                        <div class="timeline-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+                        <div class="timeline-content">
+                            <strong>Bestellung eingegangen</strong>
+                            <small>Wir haben deine Bestellung erhalten.</small>
+                        </div>
+                    </div>
+                    <div class="timeline-item active">
+                        <div class="timeline-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg></div>
+                        <div class="timeline-content">
+                            <strong>Wird bearbeitet</strong>
+                            <small>Deine Süßigkeiten werden liebevoll verpackt.</small>
+                        </div>
+                    </div>
+                    <div class="timeline-item active pulse">
+                        <div class="timeline-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></div>
+                        <div class="timeline-content">
+                            <strong>Versendet</strong>
+                            <small>Das Paket ist auf dem Weg zu dir.</small>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg></div>
+                        <div class="timeline-content">
+                            <strong>Zugestellt</strong>
+                            <small>Ihre Bestellung wurde zugestellt.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact" class="section">
+            <h2>Kontakt</h2>
+            <div
+                style="max-width: 600px; margin: 0 auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: var(--shadow);">
+                <form onsubmit="event.preventDefault(); app.showToast('Nachricht gesendet! <svg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'vertical-align: middle;\'><path d=\'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z\'></path><polyline points=\'22,6 12,13 2,6\'></polyline></svg>'); event.target.reset();">
+                    <label>Name</label>
+                    <input type="text" required>
+                    <label>Email</label>
+                    <input type="email" required>
+                    <label>Nachricht</label>
+                    <textarea rows="5" required></textarea>
+                    <button type="submit">Senden</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Success Section -->
+        <section id="success" class="section" style="text-align: center; padding: 4rem 0;">
+            <div style="background: white; padding: 3rem; border-radius: 24px; box-shadow: var(--shadow); display: inline-block; max-width: 500px; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+                <div style="font-size: 4rem; margin-bottom: 1rem; color: var(--accent-color); display: flex; justify-content: center;"><svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></div>
+                <h2 style="margin-top: 0;">Vielen Dank!</h2>
+                <p>Deine Bestellung wurde erfolgreich simuliert.</p>
+                <p style="background: var(--bg-color); padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 1.2rem; margin: 1.5rem 0;">
+                    Bestellnummer: <span id="order-id" style="color: var(--accent-color); font-weight: bold;">#000000</span>
+                </p>
+                <button onclick="app.downloadInvoice()" class="secondary" style="width: auto; margin-right: 10px;">Rechnung (PDF)</button>
+                <button onclick="app.trackOrder()" class="secondary" style="width: auto; margin-right: 10px;">Lieferung verfolgen</button>
+                <button onclick="app.navigate('home')" style="width: auto;">Weiter einkaufen</button>
+            </div>
+        </section>
+
+        <!-- Impressum Section -->
+        <section id="impressum" class="section">
+            <h2>Impressum</h2>
+            <div style="background: white; padding: 2rem; border-radius: 8px; box-shadow: var(--shadow); max-width: 800px; margin: 0 auto;">
+                <h3>Angaben gemäß § 5 TMG</h3>
+                <p>
+                    PRECTO<br>
+                    Inh. Sebastian Roth<br>
+                    Hauptstraße 10<br>
+                    73730 Esslingen am Neckar<br>
+                    Deutschland
+                </p>
+                <h3>Kontakt</h3>
+                <p>
+                    Telefon: +49 (0) 123 456789<br>
+                    E-Mail: info@precto-shop.de
+                </p>
+                <h3>Vertreten durch</h3>
+                <p>Inhaber: Sebastian Roth</p>
+                <h3>Registereintrag</h3>
+                <p>
+                    Eintragung im Handelsregister.<br>
+                    Registergericht: Amtsgericht Stuttgart<br>
+                    Registernummer: HRB 12345
+                </p>
+                <h3>Umsatzsteuer-ID</h3>
+                <p>
+                    Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz:<br>
+                    DE123456789
+                </p>
+            </div>
+        </section>
+
+        <!-- Datenschutz Section -->
+        <section id="datenschutz" class="section">
+            <h2>Datenschutzerklärung</h2>
+            <div style="background: white; padding: 2rem; border-radius: 8px; box-shadow: var(--shadow); max-width: 800px; margin: 0 auto;">
+                <h3>1. Datenschutz auf einen Blick</h3>
+                <p><strong>Allgemeine Hinweise</strong><br>Die folgenden Hinweise geben einen einfachen Überblick darüber, was mit Ihren personenbezogenen Daten passiert, wenn Sie diese Website besuchen.</p>
+                <h3>2. Verantwortliche Stelle</h3>
+                <p>PRECTO<br>Inh. Sebastian Roth<br>Hauptstraße 10<br>73730 Esslingen am Neckar<br>E-Mail: info@precto.de</p>
+                <h3>3. Datenerfassung auf unserer Website</h3>
+                <p><strong>Cookies</strong><br>Unsere Internetseiten verwenden so genannte „Cookies“. Cookies sind kleine Textdateien und richten auf Ihrem Endgerät keinen Schaden an.</p>
+            </div>
+        </section>
+    </main>
+    
+    <style>
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+    <!-- Confetti Canvas -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <footer>
+        <p>&copy; 2026 PRECTO. All rights reserved.<br>powered by <a href="https://flowwebdesign.de">Flowwebdesign</a> x Shopify</p>
+        <p>
+            <a href="#" onclick="app.navigate('impressum'); return false;">Impressum</a> |
+            <a href="#" onclick="app.navigate('datenschutz'); return false;">Datenschutz</a>
+        </p>
+    </footer>
+    </div>
+    <!-- Shopify Buy SDK -->
+    <script src="https://sdks.shopifycdn.com/js-buy-sdk/v2/latest/index.umd.min.js"></script>
+    <script src="products.js"></script>
+    <script src="taxes.js"></script>
+    <!-- jsPDF Library für Rechnungsdruck -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
