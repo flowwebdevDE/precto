@@ -2,7 +2,8 @@
         const shopifyConfig = {
             // TODO: Hier Ihre Shopify-Daten eintragen
             domain: 'devstore-2794986.myshopify.com', 
-            storefrontAccessToken: '9e3de93f3f4599e6e419b6b60ffd6c8f'
+            storefrontAccessToken: '9e3de93f3f4599e6e419b6b60ffd6c8f',
+            apiVersion: '2024-01' // Feste Version für Stabilität
         };
 
         const config = {
@@ -123,6 +124,12 @@
                     .catch((err) => {
                         console.log("%c❌ Verbindung fehlgeschlagen!", "color: #ef4444; font-weight: bold; font-size: 1.1em;");
                         console.error("Fehler-Details:", err);
+                        
+                        let msg = err.message || JSON.stringify(err);
+                        if (msg.includes("Failed to fetch")) {
+                            console.warn("Netzwerkfehler: Domain prüfen. Ist die URL korrekt?");
+                        }
+                        
                         console.warn("Mögliche Ursachen:\n1. Falsche Domain (muss 'ihr-shop.myshopify.com' sein)\n2. Ungültiger Storefront Access Token\n3. Fehlende API-Berechtigungen (unauthenticated_read_product_listings)");
                     })
                     .finally(() => console.groupEnd());
@@ -746,7 +753,14 @@
             processShopifyCheckout() {
                 if (!this.shopifyClient) {
                     console.error("Shopify Client nicht initialisiert.");
-                    this.showToast("Shopify Verbindung fehlt.", "error");
+                    console.error("Fehler: Shopify Verbindung fehlt.");
+                    return;
+                }
+
+                // Validierung: Prüfen ob echte Shopify IDs vorhanden sind (keine Platzhalter)
+                const hasInvalidItems = this.cart.some(item => !item.shopifyVariantId || item.shopifyVariantId.includes('REPLACE_ME'));
+                if (hasInvalidItems) {
+                    console.error("Fehler: Test-Produkte (Platzhalter) im Warenkorb. Bitte echte Shopify Variant IDs eintragen.");
                     return;
                 }
 
@@ -756,22 +770,71 @@
                     btn.innerHTML = '<span class="spinner"></span> Leite zu Shopify weiter...';
                 }
 
-                // Line Items für Shopify erstellen
-                const lineItemsToAdd = this.cart.map(item => {
-                    return {
-                        variantId: item.shopifyVariantId,
-                        quantity: item.qty
-                    };
-                });
+                console.log("Starte Checkout via Cart API...");
 
-                // Checkout erstellen und weiterleiten
-                this.shopifyClient.checkout.create().then((checkout) => {
-                    this.shopifyClient.checkout.addLineItems(checkout.id, lineItemsToAdd).then((checkout) => {
-                        window.location.href = checkout.webUrl;
-                    });
+                // 1. Daten für Cart API vorbereiten
+                const lineItems = this.cart.map(item => ({
+                    merchandiseId: item.shopifyVariantId,
+                    quantity: parseInt(item.qty)
+                }));
+
+                // 2. GraphQL Mutation für modernen Checkout (Cart API)
+                const query = `
+                    mutation cartCreate($lines: [CartLineInput!]) {
+                        cartCreate(input: { lines: $lines }) {
+                            cart {
+                                checkoutUrl
+                            }
+                            userErrors {
+                                field
+                                message
+                            }
+                        }
+                    }
+                `;
+
+                const variables = { lines: lineItems };
+                
+                // Domain bereinigen (falls https:// dabei ist)
+                const domain = shopifyConfig.domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+                // 3. Direkter Fetch Request (umgeht SDK-Probleme)
+                fetch(`https://${domain}/api/${shopifyConfig.apiVersion || '2024-01'}/graphql.json`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Shopify-Storefront-Access-Token': shopifyConfig.storefrontAccessToken
+                    },
+                    body: JSON.stringify({ query, variables })
+                })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.errors) {
+                        throw new Error(result.errors.map(e => e.message).join(' | '));
+                    }
+                    
+                    const data = result.data.cartCreate;
+                    if (data.userErrors && data.userErrors.length > 0) {
+                        throw new Error(data.userErrors.map(e => e.message).join(' | '));
+                    }
+
+                    if (data.cart && data.cart.checkoutUrl) {
+                        window.location.href = data.cart.checkoutUrl;
+                    } else {
+                        throw new Error("Keine Checkout-URL von Shopify erhalten.");
+                    }
                 }).catch(err => {
                     console.error("Shopify Error:", err);
-                    this.showToast("Fehler bei der Verbindung zu Shopify.", "error");
+                    
+                    let errorMsg = err.message || "Unbekannter Fehler";
+                    
+                    if (errorMsg.includes("doesn't exist on type 'Mutation'")) {
+                        errorMsg = "Berechtigungs-Fehler: 'cartCreate' Mutation nicht verfügbar. Bitte prüfen Sie, ob der Token Schreibrechte für Checkouts hat.";
+                    } else if (errorMsg.includes("Access denied")) {
+                        errorMsg = "Zugriff verweigert: Token ungültig oder Rechte fehlen.";
+                    }
+
+                    console.error(errorMsg);
                     if(btn) {
                         btn.disabled = false;
                         btn.innerHTML = 'Zur Kasse gehen ➔';
