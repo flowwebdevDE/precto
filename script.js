@@ -1,3 +1,5 @@
+        //Version vom 06.02.2026
+        
         // --- KONFIGURATION & DATEN ---
         const shopifyConfig = {
             // TODO: Hier Ihre Shopify-Daten eintragen
@@ -7,6 +9,7 @@
         };
 
         const config = {
+            enablePreviewMode: true, // Setze auf false, um den Login zu deaktivieren (Shop live schalten)
             // Währungs-Konfiguration (Basis: EUR)
             currencyRates: {
                 'DE': { code: 'EUR', symbol: '€', rate: 1 },
@@ -64,10 +67,16 @@
             },
 
             init() {
-                // Prüfen ob bereits eingeloggt
-                if (sessionStorage.getItem('preview_access') === 'true') {
+                // Prüfen ob Preview-Modus aktiv ist oder bereits eingeloggt
+                if (!config.enablePreviewMode || sessionStorage.getItem('preview_access') === 'true') {
                     const loginOverlay = document.getElementById('preview-login');
                     if (loginOverlay) loginOverlay.style.display = 'none';
+                }
+
+                // Prüfen ob Kunde von erfolgreicher Shopify-Zahlung zurückkehrt
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('payment') === 'success') {
+                    this.handleSuccessReturn();
                 }
 
                 this.initShopify();
@@ -92,6 +101,16 @@
                 
                 // Setze Standardland beim Start
                 this.setCountry(this.selectedCountry);
+            },
+
+            handleSuccessReturn() {
+                // Warenkorb leeren nach erfolgreichem Kauf
+                this.cart = [];
+                this.saveCart();
+                this.updateCartUI();
+                
+                // Zur Success-Seite navigieren
+                setTimeout(() => this.navigate('success'), 100);
             },
 
             initShopify() {
@@ -746,11 +765,26 @@
                     return;
                 }
                 
-                // Shopify Checkout Integration
-                this.processShopifyCheckout();
+                // Wizard starten (Daten lokal erfassen)
+                this.currentStep = 1;
+                this.updateWizardUI();
+                this.navigate('checkout');
             },
 
-            processShopifyCheckout() {
+            processShopifyCheckout(btnElement = null) {
+                // Helper für Button-Status
+                const setButtonState = (loading) => {
+                    if (!btnElement) return;
+                    if (loading) {
+                        btnElement.disabled = true;
+                        btnElement.dataset.originalText = btnElement.innerHTML;
+                        btnElement.innerHTML = '<span class="spinner"></span> Leite zu Shopify weiter...';
+                    } else {
+                        btnElement.disabled = false;
+                        btnElement.innerHTML = btnElement.dataset.originalText || 'Weiter';
+                    }
+                };
+
                 if (!this.shopifyClient) {
                     console.error("Shopify Client nicht initialisiert.");
                     console.error("Fehler: Shopify Verbindung fehlt.");
@@ -761,28 +795,53 @@
                 const hasInvalidItems = this.cart.some(item => !item.shopifyVariantId || item.shopifyVariantId.includes('REPLACE_ME'));
                 if (hasInvalidItems) {
                     console.error("Fehler: Test-Produkte (Platzhalter) im Warenkorb. Bitte echte Shopify Variant IDs eintragen.");
+                    alert("Konfigurationsfehler: Bitte prüfen Sie die Browser-Konsole."); // Fallback Feedback
                     return;
                 }
 
-                const btn = document.querySelector('.checkout-btn-large');
-                if(btn) {
-                    btn.disabled = true;
-                    btn.innerHTML = '<span class="spinner"></span> Leite zu Shopify weiter...';
-                }
+                // Daten aus dem lokalen Wizard auslesen
+                const emailInput = document.getElementById('input-email');
+                const email = emailInput ? emailInput.value : '';
+                const address = {
+                    firstName: document.getElementById('input-firstname')?.value || '',
+                    lastName: document.getElementById('input-lastname')?.value || '',
+                    address1: document.getElementById('input-street')?.value || '',
+                    city: document.getElementById('input-city')?.value || '',
+                    country: document.getElementById('input-country')?.value || 'DE',
+                    zip: document.getElementById('input-zip')?.value || ''
+                };
 
-                console.log("Starte Checkout via Cart API...");
+                setButtonState(true);
+                console.log("Erstelle Warenkorb mit Kundendaten (Cart API)...");
 
-                // 1. Daten für Cart API vorbereiten
+                // 1. Line Items vorbereiten
                 const lineItems = this.cart.map(item => ({
                     merchandiseId: item.shopifyVariantId,
                     quantity: parseInt(item.qty)
                 }));
 
-                // 2. GraphQL Mutation für modernen Checkout (Cart API)
-                const query = `
+                const domain = shopifyConfig.domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                const apiUrl = `https://${domain}/api/${shopifyConfig.apiVersion || '2024-01'}/graphql.json`;
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-Shopify-Storefront-Access-Token': shopifyConfig.storefrontAccessToken
+                };
+
+                // Helper für Fetch-Requests
+                const shopifyFetch = (query, variables) => {
+                    return fetch(apiUrl, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({ query, variables })
+                    }).then(res => res.json());
+                };
+
+                // Schritt 1: Cart erstellen
+                const createQuery = `
                     mutation cartCreate($lines: [CartLineInput!]) {
                         cartCreate(input: { lines: $lines }) {
                             cart {
+                                id
                                 checkoutUrl
                             }
                             userErrors {
@@ -793,52 +852,64 @@
                     }
                 `;
 
-                const variables = { lines: lineItems };
-                
-                // Domain bereinigen (falls https:// dabei ist)
-                const domain = shopifyConfig.domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-
-                // 3. Direkter Fetch Request (umgeht SDK-Probleme)
-                fetch(`https://${domain}/api/${shopifyConfig.apiVersion || '2024-01'}/graphql.json`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Shopify-Storefront-Access-Token': shopifyConfig.storefrontAccessToken
-                    },
-                    body: JSON.stringify({ query, variables })
-                })
-                .then(res => res.json())
+                shopifyFetch(createQuery, { lines: lineItems })
                 .then(result => {
-                    if (result.errors) {
-                        throw new Error(result.errors.map(e => e.message).join(' | '));
-                    }
-                    
+                    if (result.errors) throw new Error(result.errors.map(e => e.message).join(' | '));
                     const data = result.data.cartCreate;
-                    if (data.userErrors && data.userErrors.length > 0) {
-                        throw new Error(data.userErrors.map(e => e.message).join(' | '));
-                    }
+                    if (data.userErrors && data.userErrors.length > 0) throw new Error(data.userErrors.map(e => e.message).join(' | '));
+                    
+                    const cartId = data.cart.id;
+                    const checkoutUrl = data.cart.checkoutUrl;
 
-                    if (data.cart && data.cart.checkoutUrl) {
-                        window.location.href = data.cart.checkoutUrl;
-                    } else {
-                        throw new Error("Keine Checkout-URL von Shopify erhalten.");
-                    }
+                    // Schritt 2: Adresse & Email setzen
+                    const updateQuery = `
+                        mutation cartUpdateBuyerIdentity($cartId: ID!, $buyerIdentity: CartBuyerIdentityInput!) {
+                            cartBuyerIdentityUpdate(cartId: $cartId, buyerIdentity: $buyerIdentity) {
+                                cart { checkoutUrl }
+                                userErrors { field message }
+                            }
+                        }
+                    `;
+
+                    const buyerIdentity = {
+                        email: email,
+                        deliveryAddressPreferences: [{
+                            deliveryAddress: {
+                                firstName: address.firstName,
+                                lastName: address.lastName,
+                                address1: address.address1,
+                                city: address.city,
+                                country: address.country,
+                                zip: address.zip
+                            }
+                        }]
+                    };
+
+                    return shopifyFetch(updateQuery, { cartId, buyerIdentity })
+                        .then(updateResult => {
+                            // Auch wenn das Update fehlschlägt (z.B. Validierung), leiten wir zum Checkout weiter
+                            if (updateResult.errors) console.warn("Adress-Update Fehler:", updateResult.errors);
+                            
+                            // Weiterleitung
+                            // WICHTIG: Damit der Kunde nach dem Kauf automatisch hierher zurückkehrt,
+                            // fügen Sie im Shopify Admin (Einstellungen > Checkout > Bestellstatus-Seite > Zusätzliche Skripte)
+                            // folgenden Code ein:
+                            // <script>window.location.href = "https://IHRE-DOMAIN.de/?payment=success";</script>
+                            window.location.href = checkoutUrl;
+                        });
                 }).catch(err => {
                     console.error("Shopify Error:", err);
                     
                     let errorMsg = err.message || "Unbekannter Fehler";
                     
-                    if (errorMsg.includes("doesn't exist on type 'Mutation'")) {
-                        errorMsg = "Berechtigungs-Fehler: 'cartCreate' Mutation nicht verfügbar. Bitte prüfen Sie, ob der Token Schreibrechte für Checkouts hat.";
+                    if (errorMsg.includes("doesn't exist on type 'Mutation'") || errorMsg.includes("Access denied")) {
+                        errorMsg = "Berechtigungs-Fehler: Bitte aktivieren Sie 'unauthenticated_write_checkouts' in den Shopify App-Einstellungen.";
                     } else if (errorMsg.includes("Access denied")) {
                         errorMsg = "Zugriff verweigert: Token ungültig oder Rechte fehlen.";
                     }
 
                     console.error(errorMsg);
-                    if(btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = 'Zur Kasse gehen ➔';
-                    }
+                    setButtonState(false);
                 });
             },
 
@@ -966,48 +1037,8 @@
 
             placeOrder() {
                 const btn = document.getElementById('btn-next');
-                const originalText = btn.innerText;
-                
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner"></span> Verarbeite...';
-                
-                // Simuliere API Request
-                setTimeout(() => {
-                    const orderId = 'ORD-' + Date.now().toString().slice(-6);
-                    this.lastOrderId = orderId;
-                    document.getElementById('order-id').innerText = orderId;
-
-                    // Bestelldaten für Rechnung sichern (bevor Cart geleert wird)
-                    const subtotal = this.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-                    const shipping = getShippingCost(this.selectedCountry);
-                    let discountVal = 0;
-                    if (this.discount) {
-                        discountVal = this.discount.type === 'percent' ? subtotal * this.discount.value : this.discount.value;
-                        if (discountVal > subtotal) discountVal = subtotal;
-                    }
-                    
-                    this.lastOrder = {
-                        id: orderId,
-                        date: new Date().toLocaleDateString('de-DE'),
-                        items: [...this.cart],
-                        subtotal: subtotal,
-                        shipping: shipping,
-                        discountVal: discountVal,
-                        total: subtotal - discountVal + shipping
-                    };
-                    
-                    this.cart = [];
-                    this.saveCart();
-                    this.updateCartUI();
-                    
-                    runConfetti(); // Trigger Confetti
-                    
-                    this.navigate('success');
-                    
-                    document.getElementById('checkout-form-step1').reset();
-                    btn.disabled = false;
-                    btn.innerText = originalText;
-                }, 2000);
+                // Echten Shopify Checkout starten (mit Daten aus Wizard)
+                this.processShopifyCheckout(btn);
             },
 
             downloadInvoice() {
