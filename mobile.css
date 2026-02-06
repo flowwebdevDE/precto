@@ -152,7 +152,10 @@
 
     .product-grid {
         gap: 1rem;
-        grid-template-columns: 1fr; 
+    }
+
+    .scroll-btn {
+        display: none;
     }
 
     .cart-item {

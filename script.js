@@ -43,6 +43,7 @@
             shopifyClient: null,
             currentStep: 1,
             currentProductId: null,
+            currentVariantId: null,
             discount: null, // Aktueller Rabatt
             selectedCountry: 'DE',
             favorites: [],
@@ -175,7 +176,9 @@
                                 category: p.productType || 'Allgemein',
                                 description: p.description || '',
                                 image: p.images[0] ? p.images[0].src : 'https://via.placeholder.com/300',
-                                shopifyVariantId: variant.id
+                                shopifyVariantId: variant.id,
+                                variantCount: p.variants.length,
+                                variants: p.variants
                             };
                         });
 
@@ -335,6 +338,11 @@
                 // Scroll Reset (für den neuen Body-Scroll-Container)
                 document.body.scrollTop = 0;
                 document.documentElement.scrollTop = 0;
+
+                // SEO: Reset Title if not product detail
+                if (pageId !== 'product-detail') {
+                    document.title = 'PRECTO | Offizieller Online Shop';
+                }
             },
 
             renderCategories() {
@@ -370,6 +378,15 @@
             sortProducts(sortValue) {
                 this.filterState.sort = sortValue;
                 this.applyFilters();
+            },
+
+            scrollProducts(direction) {
+                const container = document.getElementById('product-list');
+                const scrollAmount = 300;
+                if (container) {
+                    const leftPos = direction === 'left' ? -scrollAmount : scrollAmount;
+                    container.scrollBy({ left: leftPos, behavior: 'smooth' });
+                }
             },
 
             applyFilters() {
@@ -454,6 +471,7 @@
                     </div>
                     <div class="product-details">
                         <h3 class="product-title" onclick="app.showProductDetails('${p.id}')" style="cursor: pointer;">${p.name}</h3>
+                        ${p.variantCount && p.variantCount > 1 ? `<div class="variant-info">${p.variantCount} Varianten verfügbar</div>` : ''}
                         <p class="product-desc">${p.description}</p>
                         <div class="product-price">
                             ${isSale ? `<span class="old-price">${this.formatPrice(p.originalPrice)}</span>` : ''}
@@ -469,7 +487,7 @@
                             </div>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
                             <button onclick="app.addToCart('${p.id}', '${context}')" style="padding: 0.75rem 0.2rem; font-size: 0.85rem;">In den Korb</button>
                             <button onclick="app.buyNow('${p.id}', '${context}')" class="secondary" style="padding: 0.75rem 0.2rem; font-size: 0.85rem;">Direkt</button>
                         </div>
@@ -488,7 +506,11 @@
                 if(!p) return;
                 
                 this.currentProductId = id;
+                this.currentVariantId = p.shopifyVariantId; // Standard-Variante setzen
                 
+                // SEO: Update Page Title
+                document.title = `${p.name} | PRECTO`;
+
                 document.getElementById('detail-img').src = p.image;
                 document.getElementById('detail-category').innerText = p.category;
                 document.getElementById('detail-title').innerText = p.name;
@@ -508,9 +530,23 @@
                     favBtn.className = `fav-btn ${newFav ? 'active' : ''}`;
                 };
                 
+                // Varianten-Auswahl (Dropdown) generieren
+                let variantSelector = '';
+                if (p.variants && p.variants.length > 1) {
+                    variantSelector = `
+                        <div style="margin-bottom: 1rem;">
+                            <label style="font-weight: bold; display: block; margin-bottom: 0.5rem;">Variante wählen:</label>
+                            <select onchange="app.selectVariant(this.value)" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #ddd; background: #f9fafb;">
+                                ${p.variants.map(v => `<option value="${v.id}">${v.title}</option>`).join('')}
+                            </select>
+                        </div>
+                    `;
+                }
+
                 // Controls
                 const controls = document.querySelector('.detail-controls');
                 controls.innerHTML = `
+                    ${variantSelector}
                     <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
                         <label style="font-weight: bold;">Menge:</label>
                         <div class="qty-selector" style="background: #f3f4f6; padding: 5px; border-radius: 12px;">
@@ -526,6 +562,21 @@
                 `;
                 
                 this.navigate('product-detail');
+            },
+
+            selectVariant(variantId) {
+                this.currentVariantId = variantId;
+                const p = products.find(x => x.id == this.currentProductId);
+                const variant = p.variants.find(v => v.id == variantId);
+                
+                if (variant) {
+                    // Preis aktualisieren
+                    const isSale = variant.compareAtPrice && parseFloat(variant.compareAtPrice.amount) > parseFloat(variant.price.amount);
+                    document.getElementById('detail-price').innerHTML = (isSale ? `<span class="old-price" style="font-size: 1.5rem;">${this.formatPrice(variant.compareAtPrice.amount)}</span> ` : '') + this.formatPrice(variant.price.amount);
+                    
+                    // Bild aktualisieren (falls Variante ein eigenes Bild hat)
+                    if (variant.image) document.getElementById('detail-img').src = variant.image.src;
+                }
             },
 
             toggleFavorite(id) {
@@ -561,7 +612,7 @@
 
             addToCartFromDetail() {
                 const qty = parseInt(document.getElementById('detail-qty-input').value) || 1;
-                this.addToCart(this.currentProductId, null, qty);
+                this.addToCart(this.currentProductId, null, qty, this.currentVariantId);
             },
 
             buyNowFromDetail() {
@@ -569,9 +620,27 @@
                 this.checkout();
             },
 
-            addToCart(id, context = 'list', explicitQty = null) {
+            addToCart(id, context = 'list', explicitQty = null, selectedVariantId = null) {
                 const product = products.find(p => p.id == id);
-                const existing = this.cart.find(item => item.id == id);
+                if (!product) return;
+
+                // Variante bestimmen (entweder ausgewählt oder Standard)
+                let variantId = selectedVariantId || product.shopifyVariantId;
+                let name = product.name;
+                let price = product.price;
+                let image = product.image;
+
+                if (product.variants) {
+                    const v = product.variants.find(v => v.id == variantId);
+                    if (v) {
+                        price = parseFloat(v.price.amount);
+                        if (v.title !== 'Default Title') name = `${product.name} - ${v.title}`;
+                        if (v.image) image = v.image.src;
+                    }
+                }
+
+                // Prüfen ob diese spezifische Variante schon im Korb ist
+                const existing = this.cart.find(item => item.id == variantId);
 
                 let qty = explicitQty;
                 if (qty === null) {
@@ -583,12 +652,22 @@
                 if (existing) {
                     existing.qty += qty;
                 } else {
-                    this.cart.push({ ...product, qty: qty });
+                    this.cart.push({
+                        ...product,
+                        id: variantId, // WICHTIG: Cart Item ID ist jetzt die Variant ID
+                        productId: product.id,
+                        name: name,
+                        price: price,
+                        image: image,
+                        shopifyVariantId: variantId,
+                        qty: qty,
+                        variants: undefined // Varianten-Liste nicht im Korb speichern
+                    });
                 }
 
                 this.saveCart();
                 this.updateCartUI();
-                this.showToast(`${qty}x ${product.name} in den Warenkorb gelegt.`);
+                this.showToast(`${qty}x ${name} in den Warenkorb gelegt.`);
 
                 // Cart Icon Animation
                 const cartIcon = document.querySelector('.cart-icon');

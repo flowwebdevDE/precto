@@ -4,7 +4,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PRECTO</title>
+    <title>PRECTO | Offizieller Online Shop</title>
+    <meta name="description" content="PRECTO - Ihr Online-Shop für hochwertige Produkte. Entdecken Sie unser Sortiment für Geschäfts- und Privatkunden. Qualität, die überzeugt.">
+    <meta name="keywords" content="PRECTO, Online Shop, B2B, Esslingen, Sebastian Roth, hochwertige Produkte">
+    <meta name="author" content="Sebastian Roth">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://www.precto.de/">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://www.precto.de/">
+    <meta property="og:title" content="PRECTO | Offizieller Online Shop">
+    <meta property="og:description" content="Entdecken Sie unsere kuratierte Auswahl an hochwertigen Produkten für Ihr Unternehmen und Zuhause.">
+    <meta property="og:image" content="https://www.precto.de/logo.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://www.precto.de/">
+    <meta property="twitter:title" content="PRECTO | Offizieller Online Shop">
+    <meta property="twitter:description" content="Entdecken Sie unsere kuratierte Auswahl an hochwertigen Produkten für Ihr Unternehmen und Zuhause.">
+    <meta property="twitter:image" content="https://www.precto.de/logo.png">
+
+    <link rel="icon" type="image/png" href="icon.PNG">
     <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="mobile.css">
 </head>
@@ -122,8 +143,16 @@
                 </select>
             </div>
 
-            <div id="product-list" class="product-grid">
-                <!-- Products rendered via JS -->
+            <div class="product-slider-wrapper">
+                <button class="scroll-btn left" onclick="app.scrollProducts('left')" aria-label="Nach links">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <div id="product-list" class="product-grid">
+                    <!-- Products rendered via JS -->
+                </div>
+                <button class="scroll-btn right" onclick="app.scrollProducts('right')" aria-label="Nach rechts">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
             </div>
         </section>
 
@@ -431,6 +460,32 @@
     <!-- jsPDF Library für Rechnungsdruck -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="script.js"></script>
+
+    <!-- Structured Data (Schema.org) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Store",
+      "name": "PRECTO",
+      "image": "https://www.precto.de/logo.png",
+      "@id": "https://www.precto.de",
+      "url": "https://www.precto.de",
+      "telephone": "+49123456789",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Hauptstraße 10",
+        "addressLocality": "Esslingen am Neckar",
+        "postalCode": "73730",
+        "addressCountry": "DE"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 48.7428,
+        "longitude": 9.3073
+      },
+      "priceRange": "$$"
+    }
+    </script>
 </body>
 
 </html>
