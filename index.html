@@ -9,21 +9,21 @@
     <meta name="keywords" content="PRECTO, Online Shop, B2B, Esslingen, Sebastian Roth, hochwertige Produkte">
     <meta name="author" content="Sebastian Roth">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://www.precto.de/">
+    <link rel="canonical" href="https://precto-shop.com/">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://www.precto.de/">
+    <meta property="og:url" content="https://precto-shop.com/">
     <meta property="og:title" content="PRECTO | Offizieller Online Shop">
     <meta property="og:description" content="Entdecken Sie unsere kuratierte Auswahl an hochwertigen Produkten für Ihr Unternehmen und Zuhause.">
-    <meta property="og:image" content="https://www.precto.de/logo.png">
+    <meta property="og:image" content="https://precto-shop.com/logo.png">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://www.precto.de/">
+    <meta property="twitter:url" content="https://precto-shop.com/">
     <meta property="twitter:title" content="PRECTO | Offizieller Online Shop">
     <meta property="twitter:description" content="Entdecken Sie unsere kuratierte Auswahl an hochwertigen Produkten für Ihr Unternehmen und Zuhause.">
-    <meta property="twitter:image" content="https://www.precto.de/logo.png">
+    <meta property="twitter:image" content="https://precto-shop.com/logo.png">
 
     <link rel="icon" type="image/png" href="icon.PNG">
     <link rel="stylesheet" href="main.css">
@@ -71,6 +71,7 @@
                 <select id="header-country-select" class="nav-country-select" onchange="app.setCountry(this.value)">
                     <option value="DE">🇩🇪 DE</option>
                     <option value="AT">🇦🇹 AT</option>
+                    <option value="CH">🇨🇭 CH</option>
                 </select>
 
                 <div class="cart-icon" onclick="app.navigate('cart')">
@@ -197,8 +198,9 @@
                     <div class="summary-row" style="align-items: center;">
                         <span>Lieferland</span>
                         <select id="cart-country" onchange="app.setCountry(this.value)" style="width: auto; padding: 0.4rem; margin: 0; font-size: 0.9rem; border-radius: 8px;">
-                            <option value="DE">Deutschland</option>
-                            <option value="AT">Österreich</option>
+                            <option value="DE">🇩🇪 Deutschland</option>
+                            <option value="AT">🇦🇹 Österreich</option>
+                            <option value="CH">🇨🇭 Schweiz</option>
                         </select>
                     </div>
                     
@@ -268,37 +270,18 @@
                                 <input type="text" id="input-zip" placeholder="PLZ" required autocomplete="postal-code" maxlength="5">
                                 <input type="text" id="input-city" placeholder="Stadt" required autocomplete="address-level2">
                             </div>
-                            <select id="input-country" required autocomplete="country" style="margin-bottom: 10px;">
+                            <select id="input-country" required autocomplete="country" style="margin-bottom: 10px;" onchange="app.setCountry(this.value)">
                                 <option value="" disabled selected>Land wählen...</option>
-                                <option value="DE">Deutschland (4,99 €)</option>
-                                <option value="AT">Österreich (9,99 €)</option>
+                                <option value="DE">🇩🇪 Deutschland</option>
+                                <option value="AT">🇦🇹 Österreich</option>
+                                <option value="CH">🇨🇭 Schweiz</option>
                             </select>
                             <input type="email" id="input-email" placeholder="E-Mail Adresse" required autocomplete="email">
                         </form>
                     </div>
 
-                    <!-- Step 2: Payment -->
+                    <!-- Step 2: Review (Payment happens in Shopify) -->
                     <div class="wizard-step" id="step-2">
-                        <h3 style="margin-bottom: 1.5rem; color: var(--primary-color); font-size: 1.5rem; display: flex; align-items: center; gap: 10px;">
-                            Wie möchtest du bezahlen?
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-                        </h3>
-                        <div class="payment-options">
-                            <label class="payment-card selected" onclick="app.selectPayment(this)">
-                                <input type="radio" name="payment" value="creditcard" checked>
-                                <span class="payment-icon"><svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg></span>
-                                <strong>Kreditkarte</strong>
-                            </label>
-                            <label class="payment-card" onclick="app.selectPayment(this)">
-                                <input type="radio" name="payment" value="paypal">
-                                <span class="payment-icon"><svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M16 13H8"></path><path d="M16 17H8"></path><path d="M10 9H8"></path></svg></span>
-                                <strong>PayPal</strong>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Step 3: Review -->
-                    <div class="wizard-step" id="step-3">
                         <h3 style="margin-bottom: 1.5rem; color: var(--primary-color); font-size: 1.5rem; display: flex; align-items: center; gap: 10px;">
                             Alles korrekt?
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>
@@ -467,9 +450,9 @@
       "@context": "https://schema.org",
       "@type": "Store",
       "name": "PRECTO",
-      "image": "https://www.precto.de/logo.png",
-      "@id": "https://www.precto.de",
-      "url": "https://www.precto.de",
+      "image": "https://precto-shop.com/logo.png",
+      "@id": "https://precto-shop.com",
+      "url": "https://precto-shop.com",
       "telephone": "+49123456789",
       "address": {
         "@type": "PostalAddress",

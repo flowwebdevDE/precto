@@ -15,7 +15,7 @@
             --bg-color: #ffffff;
             --text-color: #4b5563;
             --card-bg: #ffffff;
-            --border-radius: 4px;
+            --border-radius: 8px;
             --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
             --transition: all 0.2s ease;
         }
@@ -25,6 +25,7 @@
             margin: 0;
             padding: 0;
             background-color: var(--bg-color);
+            background: linear-gradient(90deg,rgba(166, 166, 166, 1) 0%, rgb(232, 232, 232) 50%, rgb(166, 166, 166, 1) 100%);
             color: var(--text-color);
             display: flex;
             flex-direction: column;
@@ -690,12 +691,12 @@
 
         /* Hero Specific */
         .hero-banner {
-            background: #f9fafb;
+            background: #f9f9f9;
             border: 1px solid #e5e7eb;
             animation: none;
             color: var(--primary-color);
             border-radius: var(--border-radius);
-            padding: 5rem 2rem;
+            padding: 3rem 0.5rem;
             margin-bottom: 3rem;
             box-shadow: none;
             position: relative;
@@ -1196,4 +1197,20 @@
             color: var(--accent-color);
             transform: translateX(-5px);
             box-shadow: none;
+        }
+
+        /* Skeleton Loading Animation */
+        .skeleton-pulse {
+            background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite ease-in-out;
+        }
+
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .skeleton-card {
+            pointer-events: none; /* Nicht klickbar während des Ladens */
         }

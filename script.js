@@ -10,6 +10,7 @@
 
         const config = {
             enablePreviewMode: true, // Setze auf false, um den Login zu deaktivieren (Shop live schalten)
+            useFallbackData: false, // Setze auf true, um Platzhalter anzuzeigen, wenn Shopify lädt/fehlt; false für Ladeanimation
             // Währungs-Konfiguration (Basis: EUR)
             currencyRates: {
                 'DE': { code: 'EUR', symbol: '€', rate: 1 },
@@ -38,7 +39,7 @@
         };
 
         // --- APP LOGIK ---
-        const app = {
+        window.app = {
             cart: [],
             shopifyClient: null,
             currentStep: 1,
@@ -88,7 +89,12 @@
                     this.favorites = JSON.parse(savedFavs);
                 }
 
-                this.renderProducts();
+                if (config.useFallbackData) {
+                    this.renderProducts();
+                } else {
+                    products = []; // Fallback-Daten löschen, damit sie nicht versehentlich angezeigt werden
+                    this.renderLoadingState();
+                }
                 this.updateCartUI();
                 // Load cart from local storage if needed
                 const savedCart = localStorage.getItem('shopCart');
@@ -112,6 +118,31 @@
                 
                 // Zur Success-Seite navigieren
                 setTimeout(() => this.navigate('success'), 100);
+            },
+
+            renderLoadingState() {
+                // Skeleton Card HTML Struktur (Platzhalter)
+                const skeletonHTML = `
+                    <div class="product-card skeleton-card" style="min-width: 260px; border: 1px solid #f3f4f6; box-shadow: none;">
+                        <div class="product-img skeleton-pulse" style="background: #f3f4f6; height: 180px;"></div>
+                        <div class="product-details" style="padding: 1.5rem;">
+                            <div class="skeleton-pulse" style="height: 22px; width: 70%; margin-bottom: 12px; border-radius: 4px;"></div>
+                            <div class="skeleton-pulse" style="height: 14px; width: 90%; margin-bottom: 8px; border-radius: 4px;"></div>
+                            <div class="skeleton-pulse" style="height: 14px; width: 60%; margin-bottom: 20px; border-radius: 4px;"></div>
+                            <div class="skeleton-pulse" style="height: 28px; width: 40%; margin-bottom: 20px; border-radius: 4px;"></div>
+                            <div class="skeleton-pulse" style="height: 45px; width: 100%; border-radius: 8px;"></div>
+                        </div>
+                    </div>
+                `;
+                
+                // 4 Platzhalter generieren
+                const content = Array(4).fill(skeletonHTML).join('');
+                
+                const list = document.getElementById('product-list');
+                const featured = document.getElementById('featured-products');
+                
+                if (list) list.innerHTML = content;
+                if (featured) featured.innerHTML = content;
             },
 
             initShopify() {
@@ -168,12 +199,22 @@
                         // Map Shopify Data to App Data Structure
                         products = fetchedProducts.map(p => {
                             const variant = p.variants[0]; // Use first variant
+                            
+                            // Kategorie-Logik verbessert:
+                            // 1. Nutze 'productType' aus Shopify
+                            // 2. Fallback auf den ersten Tag, falls productType leer ist
+                            // 3. Fallback auf 'Allgemein'
+                            let category = p.productType ? p.productType.trim() : '';
+                            if (!category && p.tags && p.tags.length > 0) {
+                                category = typeof p.tags[0] === 'object' ? p.tags[0].value : p.tags[0];
+                            }
+
                             return {
                                 id: p.id, // Keep Shopify ID (Base64 String)
                                 name: p.title,
                                 price: parseFloat(variant.price.amount),
                                 originalPrice: variant.compareAtPrice ? parseFloat(variant.compareAtPrice.amount) : null,
-                                category: p.productType || 'Allgemein',
+                                category: category || 'Allgemein',
                                 description: p.description || '',
                                 image: p.images[0] ? p.images[0].src : 'https://via.placeholder.com/300',
                                 shopifyVariantId: variant.id,
@@ -189,7 +230,12 @@
                     } else {
                         console.warn("⚠️ Keine Produkte in Shopify gefunden.");
                     }
-                }).catch(err => console.error("❌ Fehler beim Laden der Produkte:", err));
+                }).catch(err => {
+                    console.error("❌ Fehler beim Laden der Produkte:", err);
+                    if (config.useFallbackData) {
+                        this.renderProducts();
+                    }
+                });
             },
 
             getCurrency() {
@@ -440,6 +486,11 @@
                 // 3. Preise und UI aktualisieren
                 this.updateCartUI();
                 this.renderProducts(); // Shop-Preise aktualisieren
+
+                // Falls wir uns im Checkout befinden, auch dort die Zusammenfassung aktualisieren
+                if (document.getElementById('checkout').classList.contains('active')) {
+                    this.renderCheckoutSummary();
+                }
             },
 
             updateFilterUI() {
@@ -998,7 +1049,7 @@
                 document.getElementById(`step-${this.currentStep}`).classList.add('active');
 
                 // Progress Bar
-                document.getElementById('wizard-progress-bar').style.width = (this.currentStep / 3 * 100) + '%';
+                document.getElementById('wizard-progress-bar').style.width = (this.currentStep / 2 * 100) + '%';
 
                 // Buttons
                 const backBtn = document.getElementById('btn-back');
@@ -1006,8 +1057,8 @@
                 
                 backBtn.style.visibility = this.currentStep === 1 ? 'hidden' : 'visible';
                 
-                if (this.currentStep === 3) {
-                    nextBtn.innerHTML = 'Kostenpflichtig bestellen ✨';
+                if (this.currentStep === 2) {
+                    nextBtn.innerHTML = 'Weiter zur Zahlung (Shopify) ➔';
                     this.renderCheckoutSummary();
                 } else {
                     nextBtn.innerHTML = 'Weiter ➔';
@@ -1024,7 +1075,7 @@
                     }
                 }
 
-                if (this.currentStep < 3) {
+                if (this.currentStep < 2) {
                     this.currentStep++;
                     this.updateWizardUI();
                 } else {
@@ -1037,12 +1088,6 @@
                     this.currentStep--;
                     this.updateWizardUI();
                 }
-            },
-
-            selectPayment(label) {
-                document.querySelectorAll('.payment-card').forEach(el => el.classList.remove('selected'));
-                label.classList.add('selected');
-                label.querySelector('input').checked = true;
             },
 
             renderCheckoutSummary() {
@@ -1341,4 +1386,4 @@
         }
 
         // Start App
-        window.onload = () => app.init();
+        window.onload = () => window.app.init();
