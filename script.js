@@ -1,12 +1,15 @@
-        //Version vom 06.02.2026
+        //Version vom 07.02.2026
         
         // --- KONFIGURATION & DATEN ---
         const shopifyConfig = {
             // TODO: Hier Ihre Shopify-Daten eintragen
             domain: 'devstore-2794986.myshopify.com', 
-            storefrontAccessToken: '9e3de93f3f4599e6e419b6b60ffd6c8f',
+            storefrontAccessToken: '9e3de93f3f4599e6e419b6b60ffd6c8f', // WICHTIG: Dies muss der "Storefront Access Token" sein (nicht der API Key!)
             apiVersion: '2024-01' // Feste Version für Stabilität
         };
+
+        // Config global verfügbar machen für Debugging
+        window.shopifyConfig = shopifyConfig;
 
         const config = {
             enablePreviewMode: true, // Setze auf false, um den Login zu deaktivieren (Shop live schalten)
@@ -42,6 +45,8 @@
         window.app = {
             cart: [],
             shopifyClient: null,
+            customerToken: null, // Token für eingeloggte Kunden
+            customerData: null,  // Kundendaten (Name, Adresse, Orders)
             currentStep: 1,
             currentProductId: null,
             currentVariantId: null,
@@ -79,6 +84,14 @@
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('payment') === 'success') {
                     this.handleSuccessReturn();
+                }
+
+                // Prüfen ob Kunde eingeloggt ist
+                this.checkCustomerLogin();
+
+                // Sicherheits-Check für Konfiguration
+                if (shopifyConfig.storefrontAccessToken && shopifyConfig.storefrontAccessToken.includes('-')) {
+                    console.warn("⚠️ WARNUNG: Der Token sieht aus wie eine Client ID (enthält Bindestriche). Bitte prüfen Sie, ob Sie wirklich den 'Storefront Access Token' verwenden.");
                 }
 
                 this.initShopify();
@@ -145,6 +158,641 @@
                 if (featured) featured.innerHTML = content;
             },
 
+            // --- SHOPIFY API HELPER ---
+            shopifyFetch(query, variables, token = shopifyConfig.storefrontAccessToken) {
+                const domain = shopifyConfig.domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                const apiUrl = `https://${domain}/api/${shopifyConfig.apiVersion || '2024-01'}/graphql.json`;
+                
+                // Token bereinigen (Leerzeichen entfernen)
+                const cleanToken = token ? token.trim() : '';
+
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-Shopify-Storefront-Access-Token': cleanToken
+                };
+                return fetch(apiUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ query, variables })
+                }).then(res => {
+                    if (!res.ok) {
+                        return res.text().then(text => { 
+                            throw new Error(`Shopify API Fehler (${res.status}): ${text}`); 
+                        });
+                    }
+                    return res.json();
+                });
+            },
+
+            // --- CUSTOMER ACCOUNT LOGIC ---
+            checkCustomerLogin() {
+                const token = localStorage.getItem('shopifyCustomerAccessToken');
+                if (token) {
+                    this.customerToken = token;
+                    this.fetchCustomerData();
+                }
+            },
+
+            handleUserIconClick() {
+                if (this.customerToken) {
+                    this.navigate('account');
+                } else {
+                    this.navigate('auth');
+                }
+            },
+
+            async registerCustomer(event) {
+                event.preventDefault();
+                const form = event.target;
+                const btn = form.querySelector('button[type="submit"]');
+                if(btn) { btn.disabled = true; btn.innerText = "Lädt..."; }
+
+                const email = form.email.value;
+                const password = form.password.value;
+                const firstName = form.firstName.value;
+                const lastName = form.lastName.value;
+
+                const query = `
+                    mutation customerCreate($input: CustomerCreateInput!) {
+                        customerCreate(input: $input) {
+                            customer { id }
+                            customerUserErrors { code field message }
+                        }
+                    }
+                `;
+
+                try {
+                    const result = await this.shopifyFetch(query, { input: { email, password, firstName, lastName } });
+                    console.log("Registrierung API Antwort:", result); // Debug Log
+                    
+                    if (result.errors) {
+                        throw new Error(result.errors.map(e => e.message).join(', '));
+                    }
+
+                    const data = result.data?.customerCreate;
+                    if (!data) throw new Error("Keine Antwort von Shopify erhalten.");
+
+                    if (data.customerUserErrors.length > 0) {
+                        console.warn("Registrierung Fehler:", data.customerUserErrors);
+                        this.showToast(data.customerUserErrors[0].message, 'error');
+                    } else {
+                        this.showToast('Konto erstellt! Ggf. E-Mail bestätigen, dann einloggen.');
+                        this.toggleAuthMode('login'); // Zum Login wechseln
+                        form.reset();
+                    }
+                } catch (err) {
+                    console.error(err);
+                    this.showToast(err.message || 'Fehler bei der Registrierung', 'error');
+                } finally {
+                    if(btn) { btn.disabled = false; btn.innerText = "Registrieren"; }
+                }
+            },
+
+            async loginCustomer(event) {
+                event.preventDefault();
+                const form = event.target;
+                const btn = form.querySelector('button[type="submit"]');
+                if(btn) { btn.disabled = true; btn.innerText = "Lädt..."; }
+
+                const email = form.email.value.trim();
+                const password = form.password.value;
+
+                const query = `
+                    mutation customerAccessTokenCreate($input: CustomerAccessTokenCreateInput!) {
+                        customerAccessTokenCreate(input: $input) {
+                            customerAccessToken { accessToken expiresAt }
+                            customerUserErrors { code field message }
+                        }
+                    }
+                `;
+
+                try {
+                    const result = await this.shopifyFetch(query, { input: { email, password } });
+                    console.log("Login API Antwort:", result); // Debug Log
+                    
+                    if (result.errors) {
+                        throw new Error(result.errors.map(e => e.message).join(', '));
+                    }
+
+                    const data = result.data?.customerAccessTokenCreate;
+                    if (!data) throw new Error("Keine Antwort von Shopify erhalten.");
+
+                    if (data.customerUserErrors.length > 0) {
+                        console.warn("Login Fehler:", data.customerUserErrors);
+                        const msg = data.customerUserErrors[0].message;
+                        this.showToast(msg === 'Unidentified customer' ? 'E-Mail/Passwort falsch oder Konto nicht aktiviert.' : msg, 'error');
+                    } else if (data.customerAccessToken) {
+                        this.customerToken = data.customerAccessToken.accessToken;
+                        localStorage.setItem('shopifyCustomerAccessToken', this.customerToken);
+                        this.showToast('Erfolgreich eingeloggt! 👋');
+                        this.fetchCustomerData();
+                        this.navigate('account');
+                        form.reset();
+                    }
+                } catch (err) {
+                    console.error(err);
+                    this.showToast(err.message || 'Login fehlgeschlagen', 'error');
+                } finally {
+                    if(btn) { btn.disabled = false; btn.innerText = "Einloggen"; }
+                }
+            },
+
+            async fetchCustomerData() {
+                if (!this.customerToken) return;
+
+                const query = `
+                    query getCustomer($customerAccessToken: String!) {
+                        customer(customerAccessToken: $customerAccessToken) {
+                            firstName lastName email
+                            defaultAddress { id address1 city zip countryCodeV2 firstName lastName }
+                            orders(first: 5, reverse: true) {
+                                edges { 
+                                    node { 
+                                        id
+                                        orderNumber 
+                                        totalPrice { amount currencyCode } 
+                                        processedAt 
+                                        canceledAt
+                                        statusUrl
+                                        financialStatus 
+                                        fulfillmentStatus 
+                                        successfulFulfillments(first: 1) {
+                                            trackingInfo(first: 1) {
+                                                url
+                                                number
+                                            }
+                                        }
+                                        shippingAddress { firstName lastName address1 city zip country }
+                                        lineItems(first: 20) {
+                                            edges {
+                                                node { title quantity variant { id price { amount } image { url } product { id title featuredImage { url } } } }
+                                            }
+                                        }
+                                    } 
+                                }
+                            }
+                        }
+                    }
+                `;
+
+                try {
+                    const result = await this.shopifyFetch(query, { customerAccessToken: this.customerToken });
+                    
+                    // Fehler-Logging für Debugging (z.B. wenn Berechtigungen für Orders fehlen)
+                    if (result.errors) {
+                        console.error("Shopify API Fehler (Customer Data):", result.errors);
+                    }
+
+                    if (result.data && result.data.customer) {
+                        this.customerData = result.data.customer;
+                        this.renderAccountDashboard();
+                    } else {
+                        console.warn("Keine Kundendaten erhalten. Token ungültig oder API-Fehler.");
+                        this.logout();
+                    }
+                } catch (err) {
+                    console.error("Fehler beim Laden der Kundendaten:", err);
+                    // Nicht sofort ausloggen bei Netzwerkfehlern, damit man es nochmal versuchen kann
+                }
+            },
+
+            logout() {
+                document.getElementById('logout-modal').classList.add('active');
+            },
+
+            confirmLogout() {
+                this.customerToken = null;
+                this.customerData = null;
+                localStorage.removeItem('shopifyCustomerAccessToken');
+                this.showToast('Ausgeloggt.');
+                this.navigate('home');
+                this.closeLogoutModal();
+            },
+
+            closeLogoutModal() {
+                document.getElementById('logout-modal').classList.remove('active');
+            },
+
+            renderAccountDashboard() {
+                const c = this.customerData;
+                if (!c) return;
+
+                // Sidebar Info
+                const sidebarName = document.getElementById('sidebar-name');
+                const sidebarEmail = document.getElementById('sidebar-email');
+                const avatar = document.getElementById('profile-avatar');
+                
+                if (sidebarName) sidebarName.innerText = `${c.firstName} ${c.lastName}`;
+                if (sidebarEmail) sidebarEmail.innerText = c.email;
+                if (avatar) avatar.innerText = this.getInitials(c.firstName, c.lastName);
+
+                // Settings Form Pre-fill
+                const setFirst = document.getElementById('settings-firstname');
+                const setLast = document.getElementById('settings-lastname');
+                const setEmail = document.getElementById('settings-email');
+                
+                if(setFirst) setFirst.value = c.firstName || '';
+                if(setLast) setLast.value = c.lastName || '';
+                if(setEmail) setEmail.value = c.email || '';
+
+                // Adresse rendern
+                const addrDisplay = document.getElementById('account-address-display');
+                const addrForm = document.getElementById('account-address-form');
+                
+                if (c.defaultAddress) {
+                    const a = c.defaultAddress;
+                    addrDisplay.innerHTML = `
+                        <strong>${a.firstName} ${a.lastName}</strong><br>
+                        ${a.address1}<br>
+                        ${a.zip} ${a.city}<br>
+                        ${a.countryCodeV2}
+                    `;
+                    // Formular vorfüllen
+                    if(addrForm) {
+                        addrForm.firstName.value = a.firstName || '';
+                        addrForm.lastName.value = a.lastName || '';
+                        addrForm.address1.value = a.address1 || '';
+                        addrForm.zip.value = a.zip || '';
+                        addrForm.city.value = a.city || '';
+                        addrForm.country.value = a.countryCodeV2 || 'DE';
+                    }
+                } else {
+                    addrDisplay.innerHTML = '<p style="color: #666;">Noch keine Adresse hinterlegt.</p>';
+                }
+
+                // Orders & Stats
+                const ordersContainer = document.getElementById('account-orders');
+                const recentOrderContainer = document.getElementById('recent-order-preview');
+                const statCount = document.getElementById('stat-orders-count');
+                const statTotal = document.getElementById('stat-total-spent');
+
+                if (ordersContainer) {
+                    if (!c.orders || c.orders.edges.length === 0) {
+                        ordersContainer.innerHTML = '<p style="color: #666;">Noch keine Bestellungen.</p>';
+                        if(recentOrderContainer) recentOrderContainer.innerHTML = '<p style="color: #666;">Noch keine Bestellungen.</p>';
+                        if(statCount) statCount.innerText = '0';
+                        if(statTotal) statTotal.innerText = this.formatPrice(0);
+                    } else {
+                        // Stats berechnen
+                        const totalOrders = c.orders.edges.length; // (Hinweis: API liefert hier nur die ersten 5, für echte Total bräuchte man ein extra Feld)
+                        let totalSpent = 0;
+                        c.orders.edges.forEach(e => totalSpent += parseFloat(e.node.totalPrice.amount));
+                        
+                        // Render Order List
+                        const orderHTML = c.orders.edges.map(({ node: o }) => {
+                            // Subtotal berechnen um Versandkosten zu ermitteln
+                            let subtotal = 0;
+                            o.lineItems.edges.forEach(({ node: item }) => {
+                                const price = item.variant?.price?.amount ? parseFloat(item.variant.price.amount) : 0;
+                                subtotal += price * item.quantity;
+                            });
+                            const total = parseFloat(o.totalPrice.amount);
+                            const shipping = Math.max(0, total - subtotal);
+
+                            // Tracking Info extrahieren (falls vorhanden)
+                            const tracking = o.successfulFulfillments?.[0]?.trackingInfo?.[0];
+
+                            return `
+                            <div class="order-card" id="order-${o.id}">
+                                <div class="flex-between mb-2 order-card-header">
+                                    <strong>Bestellung #${o.orderNumber}</strong>
+                                    <span>${new Date(o.processedAt).toLocaleDateString()}</span>
+                                </div>
+                                <div class="flex-between mb-4 order-card-status">
+                                    <span class="status-badge ${o.canceledAt ? 'cancelled' : (o.fulfillmentStatus === 'FULFILLED' ? 'success' : 'pending')}">
+                                        ${o.canceledAt ? 'Storniert' : (o.fulfillmentStatus === 'FULFILLED' ? 'Versendet' : 'In Bearbeitung')}
+                                    </span>
+                                    <strong>${this.formatPrice(o.totalPrice.amount)}</strong>
+                                </div>
+                                
+                                <div class="order-actions">
+                                    <button class="secondary small" onclick="app.toggleOrderDetails('${o.id}')" id="btn-details-${o.id}">Details anzeigen</button>
+                                    <button class="small" onclick="app.repeatOrder('${o.id}')">Bestellung wiederholen</button>
+                                    <button class="secondary small" onclick="app.showOrderStatus('${o.id}')" style="background: #f0f9ff; border: 1px solid #bae6fd; color: #0284c7;">Bestellstatus</button>
+                                    ${tracking?.url ? `<button class="secondary small" onclick="window.open('${tracking.url}', '_blank')" style="background: #ecfdf5; border: 1px solid #6ee7b7; color: #047857;">Tracking 📦</button>` : ''}
+                                </div>
+
+                                <div id="details-${o.id}" class="order-details-list" style="display: none;">
+                                    ${o.lineItems.edges.map(({ node: item }) => {
+                                        // Robustes Laden der Bilder: Erst Variante, dann Produkt, dann Platzhalter
+                                        const variantImg = item.variant?.image?.url;
+                                        const productImg = item.variant?.product?.featuredImage?.url;
+                                        const img = variantImg || productImg || 'https://via.placeholder.com/50';
+                                        
+                                        const price = item.variant?.price?.amount || '0.00';
+                                        return `
+                                            <div class="order-detail-item">
+                                                <img src="${img}" alt="${item.title}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px;">
+                                                <div style="flex: 1;">
+                                                    <div style="font-weight: 600; font-size: 0.9rem;">${item.title}</div>
+                                                    <div style="color: #666; font-size: 0.85rem;">${item.quantity}x ${this.formatPrice(price)}</div>
+                                                </div>
+                                                <div style="font-weight: bold;">
+                                                    ${this.formatPrice(price * item.quantity)}
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #eee; text-align: right; font-size: 0.9rem; color: #666;">
+                                        ${shipping > 0.01 ? `<div style="margin-bottom:4px;">Versand: ${this.formatPrice(shipping)}</div>` : ''}
+                                        <span style="margin-right: 10px;">inkl. MwSt.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('');
+                        
+                        ordersContainer.innerHTML = orderHTML;
+
+                        // Recent Order (Erste in der Liste)
+                        if(recentOrderContainer) {
+                            const firstOrderNode = c.orders.edges[0].node;
+
+                            // Get first 3 product images from the order
+                            const itemImagesHTML = firstOrderNode.lineItems.edges.slice(0, 3).map(({ node: item }) => {
+                                const img = item.variant?.image?.url || item.variant?.product?.featuredImage?.url || 'https://via.placeholder.com/50';
+                                return `<img src="${img}" alt="${item.title}" class="recent-order-item-img">`;
+                            }).join('');
+
+                            const isCanceled = firstOrderNode.canceledAt !== null;
+                            const isFulfilled = firstOrderNode.fulfillmentStatus === 'FULFILLED';
+                            const statusClass = isCanceled ? 'cancelled' : (isFulfilled ? 'success' : 'pending');
+                            const statusText = isCanceled ? 'Storniert' : (isFulfilled ? 'Versendet' : 'In Bearbeitung');
+
+                            recentOrderContainer.innerHTML = `
+                                <div class="recent-order-card">
+                                    <div class="recent-order-images">
+                                        ${itemImagesHTML}
+                                    </div>
+                                    <div class="recent-order-info">
+                                        <div>
+                                            <strong>Bestellung #${firstOrderNode.orderNumber}</strong>
+                                            <span class="status-badge ${statusClass}" style="margin-left: 10px;">${statusText}</span>
+                                        </div>
+                                        <small style="color: #666;">${new Date(firstOrderNode.processedAt).toLocaleDateString()} &middot; ${this.formatPrice(firstOrderNode.totalPrice.amount)}</small>
+                                    </div>
+                                    <button class="small" onclick="app.showOrderStatus('${firstOrderNode.id}')" style="margin-left: auto;">Details</button>
+                                </div>
+                            `;
+                        }
+
+                        if(statCount) statCount.innerText = totalOrders;
+                        if(statTotal) statTotal.innerText = this.formatPrice(totalSpent);
+                    }
+                }
+            },
+
+            toggleAddressForm() {
+                const form = document.getElementById('account-address-form');
+                const display = document.getElementById('account-address-display');
+                if (form.style.display === 'none') {
+                    form.style.display = 'block';
+                    display.style.display = 'none';
+                } else {
+                    form.style.display = 'none';
+                    display.style.display = 'block';
+                }
+            },
+
+            switchAccountTab(tabId) {
+                // Buttons active state
+                document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+                const activeBtn = document.getElementById(`nav-btn-${tabId}`);
+                if(activeBtn) activeBtn.classList.add('active');
+
+                // Content visibility
+                document.querySelectorAll('.tab-pane').forEach(pane => pane.style.display = 'none');
+                const activePane = document.getElementById(`tab-${tabId}`);
+                if(activePane) activePane.style.display = 'block';
+            },
+
+            getInitials(first, last) {
+                return (first.charAt(0) + last.charAt(0)).toUpperCase();
+            },
+
+            async updateCustomerAddress(event) {
+                event.preventDefault();
+                const form = event.target;
+                const btn = form.querySelector('button[type="submit"]');
+                if(btn) { btn.disabled = true; btn.innerText = "Speichert..."; }
+
+                const addressInput = {
+                    firstName: form.firstName.value,
+                    lastName: form.lastName.value,
+                    address1: form.address1.value,
+                    zip: form.zip.value,
+                    city: form.city.value,
+                    country: form.country.value
+                };
+
+                // Prüfen ob Update oder Create
+                const isUpdate = this.customerData.defaultAddress && this.customerData.defaultAddress.id;
+                const mutationName = isUpdate ? 'customerAddressUpdate' : 'customerAddressCreate';
+                const idVar = isUpdate ? '$id: ID!, ' : '';
+                const idParam = isUpdate ? 'id: $id, ' : '';
+
+                const query = `
+                    mutation addressMutation($customerAccessToken: String!, ${idVar}$address: MailingAddressInput!) {
+                        ${mutationName}(customerAccessToken: $customerAccessToken, ${idParam}address: $address) {
+                            customerAddress { id }
+                            customerUserErrors { code field message }
+                        }
+                    }
+                `;
+
+                const variables = {
+                    customerAccessToken: this.customerToken,
+                    address: addressInput
+                };
+                if (isUpdate) variables.id = this.customerData.defaultAddress.id;
+
+                try {
+                    const result = await this.shopifyFetch(query, variables);
+                    const data = result.data?.[mutationName];
+                    
+                    if (data?.customerUserErrors?.length > 0) {
+                        this.showToast(data.customerUserErrors[0].message, 'error');
+                    } else {
+                        this.showToast('Adresse gespeichert!');
+                        this.toggleAddressForm();
+                        this.fetchCustomerData(); // Daten neu laden
+                    }
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('Fehler beim Speichern', 'error');
+                } finally {
+                    if(btn) { btn.disabled = false; btn.innerText = "Speichern"; }
+                }
+            },
+
+            async updateCustomerProfile(event) {
+                event.preventDefault();
+                const form = event.target;
+                const btn = form.querySelector('button[type="submit"]');
+                if(btn) { btn.disabled = true; btn.innerText = "Speichert..."; }
+
+                const input = {
+                    firstName: form.firstName.value,
+                    lastName: form.lastName.value,
+                    email: form.email.value
+                };
+
+                if (form.password.value) {
+                    input.password = form.password.value;
+                }
+
+                const query = `
+                    mutation customerUpdate($customerAccessToken: String!, $customer: CustomerUpdateInput!) {
+                        customerUpdate(customerAccessToken: $customerAccessToken, customer: $customer) {
+                            customer { id firstName lastName email }
+                            customerAccessToken { accessToken expiresAt }
+                            customerUserErrors { code field message }
+                        }
+                    }
+                `;
+
+                try {
+                    const result = await this.shopifyFetch(query, { customerAccessToken: this.customerToken, customer: input });
+                    const data = result.data?.customerUpdate;
+
+                    if (data?.customerUserErrors?.length > 0) {
+                        this.showToast(data.customerUserErrors[0].message, 'error');
+                    } else {
+                        this.showToast('Profil aktualisiert!');
+                        // Falls Passwort geändert wurde, gibt es einen neuen Token
+                        if (data.customerAccessToken) {
+                            this.customerToken = data.customerAccessToken.accessToken;
+                            localStorage.setItem('shopifyCustomerAccessToken', this.customerToken);
+                        }
+                        this.fetchCustomerData(); // UI aktualisieren
+                    }
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('Fehler beim Aktualisieren', 'error');
+                } finally {
+                    if(btn) { btn.disabled = false; btn.innerText = "Änderungen speichern"; }
+                }
+            },
+
+            toggleOrderDetails(orderId) {
+                const details = document.getElementById(`details-${orderId}`);
+                const btn = document.getElementById(`btn-details-${orderId}`);
+                if (details.style.display === 'none') {
+                    details.style.display = 'block';
+                    btn.innerText = 'Details verbergen';
+                } else {
+                    details.style.display = 'none';
+                    btn.innerText = 'Details anzeigen';
+                }
+            },
+
+            showOrderStatus(orderId) {
+                const order = this.customerData.orders.edges.find(e => e.node.id === orderId)?.node;
+                if (!order) return;
+
+                const container = document.getElementById('order-status-content');
+                
+                // Status Logic
+                const isCanceled = order.canceledAt !== null;
+                const isFulfilled = order.fulfillmentStatus === 'FULFILLED';
+                
+                // Timeline Steps
+                const steps = [
+                    { title: "Bestellung eingegangen", active: true, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>' },
+                    { title: "In Bearbeitung", active: !isCanceled, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>' },
+                    { title: "Versendet", active: isFulfilled, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>' }
+                ];
+
+                if (isCanceled) {
+                    steps.push({ title: "Storniert", active: true, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>', error: true });
+                }
+
+                const timelineHTML = steps.map((step, i) => `
+                    <div class="timeline-item ${step.active ? 'active' : ''} ${step.error ? 'error' : ''}">
+                        <div class="timeline-icon">${step.icon}</div>
+                        <div class="timeline-content">
+                            <strong>${step.title}</strong>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Address
+                const addr = order.shippingAddress;
+                const addressHTML = addr ? `
+                    <div class="address-card" style="margin-top: 2rem;">
+                        <h4 style="margin-top: 0;">Lieferadresse</h4>
+                        ${addr.firstName} ${addr.lastName}<br>
+                        ${addr.address1}<br>
+                        ${addr.zip} ${addr.city}<br>
+                        ${addr.country || ''}
+                    </div>
+                ` : '';
+
+                // Items
+                const itemsHTML = order.lineItems.edges.map(({ node: item }) => {
+                    const img = item.variant?.image?.url || item.variant?.product?.featuredImage?.url || 'https://via.placeholder.com/50';
+                    return `
+                        <div class="status-item" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 1rem;">
+                            <img src="${img}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600;">${item.title}</div>
+                                <div style="color: #666; font-size: 0.9rem;">${item.quantity}x</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                container.innerHTML = `
+                    <div class="flex-between mb-4 status-header" style="margin-bottom: 2rem;">
+                        <h2 style="margin: 0;">Bestellung #${order.orderNumber}</h2>
+                        <span class="status-badge ${isCanceled ? 'cancelled' : (isFulfilled ? 'success' : 'pending')}" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                            ${isCanceled ? 'Storniert' : (isFulfilled ? 'Versendet' : 'In Bearbeitung')}
+                        </span>
+                    </div>
+
+                    <div class="tracking-timeline" style="margin-bottom: 2rem;">
+                        ${timelineHTML}
+                    </div>
+
+                    ${addressHTML}
+
+                    <h3 style="margin-top: 2rem;">Inhalt</h3>
+                    <div>${itemsHTML}</div>
+                `;
+
+                this.navigate('order-status');
+            },
+
+            repeatOrder(orderId) {
+                const orderEdge = this.customerData.orders.edges.find(e => e.node.id === orderId);
+                if (!orderEdge) return;
+                
+                let addedCount = 0;
+                orderEdge.node.lineItems.edges.forEach(({ node: item }) => {
+                    if (item.variant && item.variant.product) {
+                        // Wir nutzen die existierende addToCart Funktion
+                        // Hinweis: Das Produkt muss im lokalen 'products' Array existieren, damit addToCart funktioniert.
+                        this.addToCart(item.variant.product.id, 'reorder', item.quantity, item.variant.id);
+                        addedCount++;
+                    }
+                });
+
+                if (addedCount > 0) {
+                    this.showToast(`${addedCount} Positionen in den Warenkorb gelegt.`);
+                    this.navigate('cart');
+                } else {
+                    this.showToast("Produkte nicht mehr verfügbar.", "error");
+                }
+            },
+
+            requestCancellation(orderNumber) {
+                this.navigate('contact');
+                const msgField = document.getElementById('contact-message');
+                if (msgField) {
+                    msgField.value = `Bitte um Stornierung meiner Bestellung #${orderNumber}.`;
+                    this.showToast("Bitte senden Sie das Formular ab, um die Stornierung anzufragen.");
+                }
+            },
+
             initShopify() {
                 if (window.ShopifyBuy) {
                     this.shopifyClient = ShopifyBuy.buildClient(shopifyConfig);
@@ -161,7 +809,7 @@
                 console.group("🛒 Shopify Verbindungs-Check");
                 console.log("Konfiguration wird geprüft...", {
                     domain: shopifyConfig.domain,
-                    token: shopifyConfig.storefrontAccessToken ? `${shopifyConfig.storefrontAccessToken.substring(0, 6)}...` : 'FEHLT'
+                    token: shopifyConfig.storefrontAccessToken ? `${shopifyConfig.storefrontAccessToken.substring(0, 10)}...` : 'FEHLT'
                 });
 
                 this.shopifyClient.shop.fetchInfo()
@@ -187,7 +835,13 @@
             },
 
             fetchShopifyProducts() {
-                if (!this.shopifyClient) return;
+                if (!this.shopifyClient) {
+                    if (!config.useFallbackData) {
+                        const list = document.getElementById('product-list');
+                        if(list) list.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">Shopify Verbindung nicht verfügbar.</div>';
+                    }
+                    return;
+                }
 
                 console.log("🔄 Lade Produkte von Shopify...");
                 
@@ -229,11 +883,16 @@
                         this.applyFilters();
                     } else {
                         console.warn("⚠️ Keine Produkte in Shopify gefunden.");
+                        this.renderProducts([]); // Loading State entfernen
                     }
                 }).catch(err => {
                     console.error("❌ Fehler beim Laden der Produkte:", err);
                     if (config.useFallbackData) {
                         this.renderProducts();
+                    } else {
+                        // Fehleranzeige im UI
+                        const list = document.getElementById('product-list');
+                        if(list) list.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: #666;">Produkte konnten nicht geladen werden.<br><small>Bitte prüfen Sie Ihre Internetverbindung.</small><br><button onclick="location.reload()" style="margin-top:1rem; width:auto;">Neu laden</button></div>';
                     }
                 });
             },
@@ -373,6 +1032,11 @@
                 const navLink = document.getElementById('nav-' + pageId);
                 if (navLink) navLink.classList.add('active');
 
+                // Update Mobile Bottom Nav State
+                document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
+                const mobileNavLink = document.getElementById('mobile-nav-' + (pageId === 'product-detail' ? 'shop' : pageId));
+                if (mobileNavLink) mobileNavLink.classList.add('active');
+
                 // Close Mobile Menu
                 document.getElementById('main-nav').classList.remove('active');
                 const hamburger = document.querySelector('.hamburger');
@@ -389,6 +1053,17 @@
                 if (pageId !== 'product-detail') {
                     document.title = 'PRECTO | Offizieller Online Shop';
                 }
+            },
+
+            toggleAuthMode(mode) {
+                document.getElementById('auth-login').style.display = mode === 'login' ? 'block' : 'none';
+                document.getElementById('auth-register').style.display = mode === 'register' ? 'block' : 'none';
+                document.getElementById('auth-recover').style.display = mode === 'recover' ? 'block' : 'none';
+                
+                document.querySelectorAll('.auth-tab').forEach(btn => btn.classList.remove('active'));
+                // Bei 'recover' bleibt der Login-Tab aktiv (oder keiner), da es ein Unterbereich ist
+                if (mode === 'login' || mode === 'recover') document.getElementById('tab-login')?.classList.add('active');
+                else if (mode === 'register') document.getElementById('tab-register')?.classList.add('active');
             },
 
             renderCategories() {
@@ -612,6 +1287,42 @@
                     </div>
                 `;
                 
+                // Accordion rendern
+                const accordionContainer = document.getElementById('detail-accordion-container');
+                if (accordionContainer) {
+                    accordionContainer.innerHTML = `
+                        <div class="detail-accordion">
+                            <div class="accordion-item">
+                                <button style="display:none;" class="accordion-header" onclick="app.toggleAccordion(this)">
+                                    <span>Details & Pflege</span>
+                                    <span class="icon">+</span>
+                                </button>
+                                <div class="accordion-content">
+                                    <div class="inner">
+                                        <p>Handgefertigt mit höchster Präzision. Jedes Stück ist ein Unikat.</p>
+                                        <ul style="padding-left: 1rem; margin: 0.5rem 0; color: #666;">
+                                            <li>Premium Materialien</li>
+                                            <li>Langlebige Verarbeitung</li>
+                                            <li>Bitte Pflegehinweise auf dem Etikett beachten</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <button class="accordion-header" onclick="app.toggleAccordion(this)">
+                                    <span>Versand & Lieferung</span>
+                                    <span class="icon">+</span>
+                                </button>
+                                <div class="accordion-content">
+                                    <div class="inner">
+                                        <p>Standardversand: 2-4 Werktage.<br>Kostenloser Versand ab 100€.<br>Wir versenden klimaneutral in recycelter Verpackung.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
                 this.navigate('product-detail');
             },
 
@@ -627,6 +1338,31 @@
                     
                     // Bild aktualisieren (falls Variante ein eigenes Bild hat)
                     if (variant.image) document.getElementById('detail-img').src = variant.image.src;
+                }
+            },
+
+            toggleAccordion(btn) {
+                const item = btn.parentElement;
+                const content = item.querySelector('.accordion-content');
+                const icon = btn.querySelector('.icon');
+                
+                // Close others (Accordion behavior)
+                document.querySelectorAll('.accordion-item.active').forEach(el => {
+                    if(el !== item) {
+                        el.classList.remove('active');
+                        el.querySelector('.accordion-content').style.maxHeight = null;
+                        el.querySelector('.icon').innerText = '+';
+                    }
+                });
+
+                if (item.classList.contains('active')) {
+                    item.classList.remove('active');
+                    content.style.maxHeight = null;
+                    icon.innerText = '+';
+                } else {
+                    item.classList.add('active');
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    icon.innerText = '−';
                 }
             },
 
@@ -767,6 +1503,7 @@
                 const cartItemsContainer = document.getElementById('cart-items-container');
                 const cartSummaryContainer = document.getElementById('cart-summary-container');
                 const countBadge = document.getElementById('cart-count');
+                const mobileCountBadge = document.getElementById('mobile-cart-count');
                 const subtotalEl = document.getElementById('cart-subtotal');
                 const totalEl = document.getElementById('cart-total-display');
                 const shippingEl = document.getElementById('cart-shipping');
@@ -779,6 +1516,11 @@
                 const totalQty = this.cart.reduce((sum, item) => sum + item.qty, 0);
                 countBadge.innerText = totalQty;
                 countBadge.style.display = totalQty > 0 ? 'block' : 'none';
+                
+                if (mobileCountBadge) {
+                    mobileCountBadge.innerText = totalQty;
+                    mobileCountBadge.style.display = totalQty > 0 ? 'block' : 'none';
+                }
 
                 // Empty State
                 if (this.cart.length === 0) {
@@ -805,7 +1547,7 @@
                         </div>
                         <div class="cart-suggestions">
                             <h3 style="color: #666; font-size: 1.2rem; margin-bottom: 1.5rem;">Vielleicht interessiert Sie das:</h3>
-                            <div class="product-grid" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem;">
+                            <div class="product-grid">
                                 ${suggestions}
                             </div>
                         </div>
@@ -899,6 +1641,27 @@
                 this.currentStep = 1;
                 this.updateWizardUI();
                 this.navigate('checkout');
+
+                // Wenn eingeloggt, Daten vorausfüllen
+                if (this.customerData) {
+                    const c = this.customerData;
+                    document.getElementById('input-firstname').value = c.firstName || '';
+                    document.getElementById('input-lastname').value = c.lastName || '';
+                    document.getElementById('input-email').value = c.email || '';
+                    if (c.defaultAddress) {
+                        document.getElementById('input-street').value = c.defaultAddress.address1 || '';
+                        document.getElementById('input-city').value = c.defaultAddress.city || '';
+                        document.getElementById('input-zip').value = c.defaultAddress.zip || '';
+                        
+                        if (c.defaultAddress.countryCodeV2) {
+                            const countryEl = document.getElementById('input-country');
+                            if(countryEl) {
+                                countryEl.value = c.defaultAddress.countryCodeV2;
+                                this.setCountry(c.defaultAddress.countryCodeV2); // Trigger updates (Währung etc.)
+                            }
+                        }
+                    }
+                }
             },
 
             processShopifyCheckout(btnElement = null) {
@@ -908,7 +1671,7 @@
                     if (loading) {
                         btnElement.disabled = true;
                         btnElement.dataset.originalText = btnElement.innerHTML;
-                        btnElement.innerHTML = '<span class="spinner"></span> Leite zu Shopify weiter...';
+                        btnElement.innerHTML = '<span class="spinner"></span> Leite zur Zahlung weiter...';
                     } else {
                         btnElement.disabled = false;
                         btnElement.innerHTML = btnElement.dataset.originalText || 'Weiter';
@@ -957,15 +1720,6 @@
                     'X-Shopify-Storefront-Access-Token': shopifyConfig.storefrontAccessToken
                 };
 
-                // Helper für Fetch-Requests
-                const shopifyFetch = (query, variables) => {
-                    return fetch(apiUrl, {
-                        method: 'POST',
-                        headers: headers,
-                        body: JSON.stringify({ query, variables })
-                    }).then(res => res.json());
-                };
-
                 // Schritt 1: Cart erstellen
                 const createQuery = `
                     mutation cartCreate($lines: [CartLineInput!]) {
@@ -982,7 +1736,7 @@
                     }
                 `;
 
-                shopifyFetch(createQuery, { lines: lineItems })
+                this.shopifyFetch(createQuery, { lines: lineItems })
                 .then(result => {
                     if (result.errors) throw new Error(result.errors.map(e => e.message).join(' | '));
                     const data = result.data.cartCreate;
@@ -1015,7 +1769,7 @@
                         }]
                     };
 
-                    return shopifyFetch(updateQuery, { cartId, buyerIdentity })
+                    return this.shopifyFetch(updateQuery, { cartId, buyerIdentity })
                         .then(updateResult => {
                             // Auch wenn das Update fehlschlägt (z.B. Validierung), leiten wir zum Checkout weiter
                             if (updateResult.errors) console.warn("Adress-Update Fehler:", updateResult.errors);
@@ -1058,7 +1812,7 @@
                 backBtn.style.visibility = this.currentStep === 1 ? 'hidden' : 'visible';
                 
                 if (this.currentStep === 2) {
-                    nextBtn.innerHTML = 'Weiter zur Zahlung (Shopify) ➔';
+                    nextBtn.innerHTML = 'Weiter zur Zahlung ➔';
                     this.renderCheckoutSummary();
                 } else {
                     nextBtn.innerHTML = 'Weiter ➔';
@@ -1377,6 +2131,52 @@
                     toast.style.animation = 'slideOutRight 0.3s ease-in forwards';
                     setTimeout(() => toast.remove(), 300);
                 }, 3000);
+            },
+
+            async recoverCustomerPassword(event) {
+                event.preventDefault();
+                const form = event.target;
+                const btn = form.querySelector('button[type="submit"]');
+                if(btn) { btn.disabled = true; btn.innerText = "Sende..."; }
+                
+                const email = form.email.value;
+                
+                const query = `
+                    mutation customerRecover($email: String!) {
+                        customerRecover(email: $email) {
+                            customerUserErrors { code field message }
+                        }
+                    }
+                `;
+
+                try {
+                    const result = await this.shopifyFetch(query, { email });
+                    
+                    if (result.errors) throw new Error(result.errors.map(e => e.message).join(', '));
+                    
+                    const data = result.data?.customerRecover;
+                    // Shopify gibt bei customerRecover oft keine Fehler zurück (Security), auch wenn Email nicht existiert.
+                    // Wenn customerUserErrors leer ist, war es erfolgreich.
+                    if (data?.customerUserErrors?.length > 0) {
+                        this.showToast(data.customerUserErrors[0].message, 'error');
+                    } else {
+                        this.showToast('Falls ein Konto existiert, wurde eine E-Mail gesendet.');
+                        this.toggleAuthMode('login');
+                        form.reset();
+                    }
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('Fehler beim Senden der Anfrage', 'error');
+                } finally {
+                    if(btn) { btn.disabled = false; btn.innerText = "E-Mail senden"; }
+                }
+            },
+
+            togglePasswordVisibility(inputId) {
+                const input = document.getElementById(inputId);
+                if (input) {
+                    input.type = input.type === 'password' ? 'text' : 'password';
+                }
             }
         };
 

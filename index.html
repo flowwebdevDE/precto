@@ -26,6 +26,10 @@
     <meta property="twitter:image" content="https://precto-shop.com/logo.png">
 
     <link rel="icon" type="image/png" href="icon.PNG">
+    <!-- Modern Font: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="mobile.css">
 </head>
@@ -73,6 +77,11 @@
                     <option value="AT">🇦🇹 AT</option>
                     <option value="CH">🇨🇭 CH</option>
                 </select>
+
+                <div class="user-icon" onclick="app.handleUserIconClick()" style="cursor: pointer;">
+                    <!-- SVG User Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
 
                 <div class="cart-icon" onclick="app.navigate('cart')">
                     <!-- SVG Cart Icon -->
@@ -178,7 +187,197 @@
                     <div class="detail-controls">
                         <!-- Controls injected via JS -->
                     </div>
+                    <div id="detail-accordion-container"></div>
                 </div>
+            </div>
+        </section>
+
+        <!-- Auth Section (Login / Register) -->
+        <section id="auth" class="section">
+            <div style="max-width: 400px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 24px; box-shadow: var(--shadow);">
+                <div class="auth-tabs" style="display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 1px solid #eee;">
+                    <button id="tab-login" class="auth-tab active" onclick="app.toggleAuthMode('login')" style="background: none; color: #999; padding: 0.5rem 0; border-radius: 0; width: auto; border-bottom: 2px solid transparent;">Anmelden</button>
+                    <button id="tab-register" class="auth-tab" onclick="app.toggleAuthMode('register')" style="background: none; color: #999; padding: 0.5rem 0; border-radius: 0; width: auto; border-bottom: 2px solid transparent;">Registrieren</button>
+                </div>
+
+                <!-- Login Form -->
+                <div id="auth-login">
+                    <h2 style="margin-top: 0;">Willkommen zurück!</h2>
+                    <form onsubmit="app.loginCustomer(event)">
+                        <input type="email" name="email" placeholder="E-Mail" required>
+                        <div class="password-wrapper">
+                            <input type="password" id="login-password" name="password" placeholder="Passwort" required>
+                            <button type="button" class="password-toggle" onclick="app.togglePasswordVisibility('login-password')" tabindex="-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                            </button>
+                        </div>
+                        <div style="text-align: right; margin-bottom: 1rem; margin-top: -5px;">
+                            <a href="#" onclick="app.toggleAuthMode('recover')" style="font-size: 0.85rem; color: #666; text-decoration: none;">Passwort vergessen?</a>
+                        </div>
+                        <button type="submit" style="margin-top: 1rem;">Einloggen</button>
+                    </form>
+                </div>
+
+                <!-- Register Form -->
+                <div id="auth-register" style="display: none;">
+                    <h2 style="margin-top: 0;">Konto erstellen</h2>
+                    <form onsubmit="app.registerCustomer(event)">
+                        <div class="form-grid">
+                            <input type="text" name="firstName" placeholder="Vorname" required>
+                            <input type="text" name="lastName" placeholder="Nachname" required>
+                        </div>
+                        <input type="email" name="email" placeholder="E-Mail" required>
+                        <div class="password-wrapper">
+                            <input type="password" id="register-password" name="password" placeholder="Passwort" required>
+                            <button type="button" class="password-toggle" onclick="app.togglePasswordVisibility('register-password')" tabindex="-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                            </button>
+                        </div>
+                        <button type="submit" style="margin-top: 1rem;">Registrieren</button>
+                    </form>
+                </div>
+
+                <!-- Recover Password Form -->
+                <div id="auth-recover" style="display: none;">
+                    <h2 style="margin-top: 0;">Passwort zurücksetzen</h2>
+                    <p style="color: #666; margin-bottom: 1.5rem; font-size: 0.95rem;">Wir senden dir eine E-Mail, mit der du dein Passwort neu vergeben kannst.</p>
+                    <form onsubmit="app.recoverCustomerPassword(event)">
+                        <input type="email" name="email" placeholder="E-Mail Adresse" required>
+                        <button type="submit" style="margin-top: 1rem;">E-Mail senden</button>
+                        <button type="button" class="secondary" onclick="app.toggleAuthMode('login')" style="margin-top: 0.5rem;">Zurück zum Login</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Account Dashboard -->
+        <section id="account" class="section">
+            <div class="account-container">
+                <!-- Sidebar Navigation -->
+                <aside class="account-sidebar">
+                    <div class="profile-summary">
+                        <div class="profile-avatar" id="profile-avatar">SR</div>
+                        <div class="profile-info">
+                            <h3 id="sidebar-name">Lade...</h3>
+                            <span id="sidebar-email">...</span>
+                        </div>
+                        <button onclick="app.logout()" class="logout-icon-btn" aria-label="Abmelden">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        </button>
+                    </div>
+                    <nav class="account-nav">
+                        <button onclick="app.switchAccountTab('overview')" class="nav-item active" id="nav-btn-overview">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            Übersicht
+                        </button>
+                        <button onclick="app.switchAccountTab('orders')" class="nav-item" id="nav-btn-orders">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                            Bestellungen
+                        </button>
+                        <button onclick="app.switchAccountTab('address')" class="nav-item" id="nav-btn-address">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                            Adresse
+                        </button>
+                        <button onclick="app.switchAccountTab('settings')" class="nav-item" id="nav-btn-settings">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            Profil & Sicherheit
+                        </button>
+                        <button onclick="app.logout()" class="nav-item logout">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            Abmelden
+                        </button>
+                    </nav>
+                </aside>
+
+                <!-- Main Content Area -->
+                <div class="account-content">
+                    
+                    <!-- Tab: Overview -->
+                    <div id="tab-overview" class="tab-pane active">
+                        <h2 style="margin-top: 0;">Willkommen zurück!</h2>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-value" id="stat-orders-count">0</div>
+                                <div class="stat-label">Bestellungen</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="stat-total-spent">0.00 €</div>
+                                <div class="stat-label">Gesamtausgaben</div>
+                            </div>
+                        </div>
+                        <h3 style="margin-top: 2rem;">Letzte Bestellung</h3>
+                        <div id="recent-order-preview">
+                            <p style="color: #666;">Noch keine Bestellungen vorhanden.</p>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Orders -->
+                    <div id="tab-orders" class="tab-pane" style="display: none;">
+                        <h2 style="margin-top: 0;">Meine Bestellungen</h2>
+                        <div id="account-orders" class="order-list"></div>
+                    </div>
+
+                    <!-- Tab: Address -->
+                    <div id="tab-address" class="tab-pane" style="display: none;">
+                        <h2 style="margin-top: 0;">Standardadresse</h2>
+                        <div id="account-address-display" class="address-card">
+                            <p style="color: #666; font-style: italic;">Keine Adresse hinterlegt.</p>
+                        </div>
+                        <button onclick="app.toggleAddressForm()" style="margin-top: 1rem; width: auto;">Adresse bearbeiten</button>
+                        
+                        <form id="account-address-form" onsubmit="app.updateCustomerAddress(event)" style="display: none; margin-top: 1rem; background: #f9fafb; padding: 1.5rem; border-radius: 12px;">
+                            <div class="form-grid">
+                                <input type="text" name="firstName" placeholder="Vorname" required>
+                                <input type="text" name="lastName" placeholder="Nachname" required>
+                            </div>
+                            <input type="text" name="address1" placeholder="Straße & Hausnummer" required>
+                            <div class="form-grid-zip">
+                                <input type="text" name="zip" placeholder="PLZ" required>
+                                <input type="text" name="city" placeholder="Stadt" required>
+                            </div>
+                            <select name="country" required style="margin-bottom: 10px;">
+                                <option value="DE">Deutschland</option>
+                                <option value="AT">Österreich</option>
+                                <option value="CH">Schweiz</option>
+                            </select>
+                            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                <button type="submit" style="width: auto;">Speichern</button>
+                                <button type="button" class="secondary" onclick="app.toggleAddressForm()" style="width: auto;">Abbrechen</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Tab: Settings -->
+                    <div id="tab-settings" class="tab-pane" style="display: none;">
+                        <h2 style="margin-top: 0;">Profil bearbeiten</h2>
+                        <form onsubmit="app.updateCustomerProfile(event)" style="max-width: 500px;">
+                            <div class="form-grid">
+                                <input type="text" id="settings-firstname" name="firstName" placeholder="Vorname" required>
+                                <input type="text" id="settings-lastname" name="lastName" placeholder="Nachname" required>
+                            </div>
+                            <input type="email" id="settings-email" name="email" placeholder="E-Mail Adresse" required>
+                            
+                            <h3 style="margin-top: 1.5rem;">Passwort ändern (optional)</h3>
+                            <div class="password-wrapper">
+                                <input type="password" name="password" id="settings-password" placeholder="Neues Passwort">
+                                <button type="button" class="password-toggle" onclick="app.togglePasswordVisibility('settings-password')" tabindex="-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                </button>
+                            </div>
+                            <p style="font-size: 0.85rem; color: #666; margin-top: -5px;">Leer lassen, wenn Sie es nicht ändern möchten.</p>
+
+                            <button type="submit" style="margin-top: 1rem; width: auto;">Änderungen speichern</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Custom Order Status Section -->
+        <section id="order-status" class="section">
+            <div class="account-dashboard">
+                <button onclick="app.navigate('account')" class="back-link" style="margin-bottom: 1rem;">← Zurück zur Übersicht</button>
+                <div id="order-status-content"></div>
             </div>
         </section>
 
@@ -347,11 +546,11 @@
                 style="max-width: 600px; margin: 0 auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: var(--shadow);">
                 <form onsubmit="event.preventDefault(); app.showToast('Nachricht gesendet! <svg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'vertical-align: middle;\'><path d=\'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z\'></path><polyline points=\'22,6 12,13 2,6\'></polyline></svg>'); event.target.reset();">
                     <label>Name</label>
-                    <input type="text" required>
+                    <input type="text" id="contact-name" required>
                     <label>Email</label>
-                    <input type="email" required>
+                    <input type="email" id="contact-email" required>
                     <label>Nachricht</label>
-                    <textarea rows="5" required></textarea>
+                    <textarea id="contact-message" rows="5" required></textarea>
                     <button type="submit">Senden</button>
                 </form>
             </div>
@@ -427,6 +626,41 @@
     <div id="toast-container"></div>
     <!-- Confetti Canvas -->
     <canvas id="confetti-canvas"></canvas>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logout-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Abmelden?</h3>
+            <p>Möchten Sie sich wirklich von Ihrem Konto abmelden?</p>
+            <div class="modal-actions">
+                <button onclick="app.closeLogoutModal()" class="secondary">Abbrechen</button>
+                <button onclick="app.confirmLogout()" class="danger">Abmelden</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav id="mobile-bottom-nav">
+        <a onclick="app.navigate('home')" id="mobile-nav-home" class="mobile-nav-item active">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span>Start</span>
+        </a>
+        <a onclick="app.navigate('shop')" id="mobile-nav-shop" class="mobile-nav-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            <span>Shop</span>
+        </a>
+        <a onclick="app.navigate('cart')" id="mobile-nav-cart" class="mobile-nav-item">
+            <div class="icon-wrapper" style="position: relative;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                <span id="mobile-cart-count" class="cart-count" style="display:none; top: -5px; right: -8px;">0</span>
+            </div>
+            <span>Korb</span>
+        </a>
+        <a onclick="app.handleUserIconClick()" id="mobile-nav-account" class="mobile-nav-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Profil</span>
+        </a>
+    </nav>
 
     <footer>
         <p>&copy; 2026 PRECTO. All rights reserved.<br>powered by <a href="https://flowwebdesign.de">Flowwebdesign</a> x Shopify</p>
